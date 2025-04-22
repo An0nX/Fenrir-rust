@@ -3,9 +3,10 @@ use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
 use crate::logger::{log_debug, log_warn}; // Use macros
-use digest::Digest;
+use digest::Digest; // Use the generic trait from digest crate
 use hex;
-use md5::Md5;
+use md5::Md5; // Keep this specific import for Md5::new()
+// use md5::Digest as Md5Digest; // Alias if Digest trait name clashes, but it shouldn't
 use sha1::Sha1;
 use sha2::Sha256;
 use std::fs::File;
@@ -35,6 +36,7 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
             break;
         }
         let data_slice = &buf[..bytes_read];
+        // These methods come from the digest::Digest trait
         md5_hasher.update(data_slice);
         sha1_hasher.update(data_slice);
         sha256_hasher.update(data_slice);

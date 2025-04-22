@@ -2,7 +2,8 @@
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
-use crate::logger::{log_info, log_notice, log_warn}; // Use macros
+// Ensure correct macros are imported (log_notice was missing)
+use crate::logger::{log_info, log_notice, log_warn};
 use std::process::{Command, Stdio};
 
 // WARNING: This relies on the external `lsof` command. Ensure it's installed

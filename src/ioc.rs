@@ -1,12 +1,13 @@
 // fenrir-rust/src/ioc.rs
-use crate::config::Config;
+uuse crate::config::Config;
 use crate::errors::{FenrirError, Result};
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::Path; // Removed PathBuf
 
+// ... (rest of file is likely okay, just removed unused PathBuf import)
 #[derive(Debug, Clone)]
 pub struct IocCollection {
     // Hashes: Store as lowercase hex strings

@@ -64,8 +64,8 @@ pub enum FenrirError {
     #[error("System information retrieval failed: {0}")]
     SystemInfo(String),
 
-    #[error("Invalid file extension: '{ext}'")]
-    InvalidExtension(String),
+    #[error("Invalid file extension: '{ext}'")] // Use named field
+    InvalidExtension { ext: String }, // Changed from tuple variant
 
     #[error("Date/Time parsing or conversion error: {0}")]
     DateTimeError(#[from] chrono::ParseError),

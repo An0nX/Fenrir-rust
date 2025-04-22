@@ -1,5 +1,5 @@
 // fenrir-rust/src/scanner.rs
-use crate::checks::{c2, filename, hash, strings, timeframe};
+use crate::checks::{filename, hash, strings, timeframe}; // Removed c2
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
@@ -7,7 +7,7 @@ use crate::logger::{log_debug, log_info}; // Use macros
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
-use walkdir::{DirEntry, WalkDir};
+use walkdir::{WalkDir}; // Removed DirEntry
 
 pub fn scan_filesystem(config: &Config, iocs: &IocCollection) -> Result<()> {
     log_info!(config, "[+] Scanning path {} ...", config.scan_path.display());
