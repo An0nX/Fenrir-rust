@@ -3,12 +3,11 @@ use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
 use crate::logger::{log_debug, log_warn};
-use digest::Digest; // Use the generic trait from digest crate
+use digest::Digest; // Generic trait
 use hex;
-use md5::Md5; // Corrected: Keep specific Md5 import
-// Removed: use md5::Digest as Md5Digest;
-use sha1::Sha1;
-use sha2::Sha256;
+use md5::Md5; // Specific type for Md5::new()
+use sha1::Sha1; // Specific type for Sha1::new()
+use sha2::Sha256; // Specific type for Sha256::new()
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -25,7 +24,6 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
     let file = File::open(path).map_err(|e| FenrirError::FileAccess { path: path.to_path_buf(), source: e })?;
     let mut reader = BufReader::with_capacity(HASH_BUFFER_SIZE, file);
 
-    // Use the specific types for instantiation
     let mut md5_hasher = Md5::new();
     let mut sha1_hasher = Sha1::new();
     let mut sha256_hasher = Sha256::new();
@@ -33,11 +31,8 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
     let mut buf = [0u8; HASH_BUFFER_SIZE];
     loop {
         let bytes_read = reader.read(&mut buf).map_err(|e| FenrirError::FileAccess { path: path.to_path_buf(), source: e })?;
-        if bytes_read == 0 {
-            break;
-        }
+        if bytes_read == 0 { break; }
         let data_slice = &buf[..bytes_read];
-        // These methods come from the digest::Digest trait
         md5_hasher.update(data_slice);
         sha1_hasher.update(data_slice);
         sha256_hasher.update(data_slice);

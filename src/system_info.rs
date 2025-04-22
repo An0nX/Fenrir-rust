@@ -6,8 +6,6 @@ use std::fs;
 use std::io;
 use std::process::Command;
 // Corrected: Removed unused PathBuf
-use std::path::PathBuf;
-
 
 pub fn log_system_info(config: &Config) -> Result<()> {
     log_info!(config, "Gathering system information...");
@@ -74,7 +72,7 @@ fn get_ip_addresses(config: &Config) -> Result<String> {
 
      if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        log_warn!(config, "ip/ifconfig command failed: {}", stderr); // Use imported macro
+        log_warn!(config, "ip/ifconfig command failed: {}", stderr);
         return Ok("N/A (Command failed)".to_string());
     }
 
@@ -107,7 +105,7 @@ fn get_os_release(config: &Config) -> Result<String> {
          match fs::read_to_string(file_path) {
              Ok(content) => releases.push(content),
              Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-             Err(e) => log_warn!(config, "Error reading release file {}: {}", file_path, e), // Use imported macro
+             Err(e) => log_warn!(config, "Error reading release file {}: {}", file_path, e),
          }
     }
 
@@ -123,7 +121,7 @@ fn get_os_release(config: &Config) -> Result<String> {
                                      match fs::read_to_string(&path) {
                                          Ok(content) => releases.push(content),
                                          Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-                                         Err(e) => log_warn!(config, "Error reading release file {}: {}", path.display(), e), // Use imported macro
+                                         Err(e) => log_warn!(config, "Error reading release file {}: {}", path.display(), e),
                                      }
                                 }
                             }
@@ -132,9 +130,9 @@ fn get_os_release(config: &Config) -> Result<String> {
                 }
             }
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                 log_warn!(config, "Release directory {} not found.", dir_path); // Use imported macro
+                 log_warn!(config, "Release directory {} not found.", dir_path);
             },
-             Err(e) => log_warn!(config, "Error reading release directory {}: {}", dir_path, e), // Use imported macro
+             Err(e) => log_warn!(config, "Error reading release directory {}: {}", dir_path, e),
         }
     }
 
@@ -149,7 +147,7 @@ fn get_os_release(config: &Config) -> Result<String> {
                     if let Some((key, value)) = trimmed.split_once('=') {
                          let key = key.trim();
                          let value = value.trim().trim_matches('"');
-                         if ["PRETTY_NAME", "NAME", "VERSION", "ID", "VERSION_ID"].contains(&key) && !value.is_empty() { // Added ID, VERSION_ID
+                         if ["PRETTY_NAME", "NAME", "VERSION", "ID", "VERSION_ID"].contains(&key) && !value.is_empty() {
                             unique_lines.insert(format!("{}: {}", key, value));
                          }
                     } else if !trimmed.contains('=') {

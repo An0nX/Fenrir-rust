@@ -5,10 +5,11 @@ use std::path::Path;
 use std::sync::Mutex;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
+// Corrected: Import LocalTime specifically if needed, or rely on feature flags
+use tracing_subscriber::fmt::time::LocalTime;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use tracing_appender::non_blocking::WorkerGuard;
 
-// Keep guard until end of program
 static LOG_GUARD: Mutex<Option<WorkerGuard>> = Mutex::new(None);
 
 pub fn setup_logging(config: &Config) -> Result<()> {
@@ -51,8 +52,8 @@ pub fn setup_logging(config: &Config) -> Result<()> {
                 .with_target(false)
                 .with_level(true)
                 .with_span_events(FmtSpan::NONE)
-                // Corrected: Use local-time feature for timestamps
-                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339())
+                // Corrected: Use the imported LocalTime directly
+                .with_timer(LocalTime::rfc_3339())
                 .with_filter(file_level);
             layers.push(file_layer.boxed());
         } else {
@@ -63,6 +64,8 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     // Syslog Logger (Optional Feature)
     #[cfg(feature = "syslog_logging")]
     {
+        use tracing_syslog::Syslog; // Import Syslog trait when feature is enabled
+
         if config.log_to_syslog {
             let syslog_level = if config.debug { LevelFilter::DEBUG } else { LevelFilter::INFO };
              let level_mapper = |level: &tracing::Level| -> syslog::Severity {
@@ -76,26 +79,16 @@ pub fn setup_logging(config: &Config) -> Result<()> {
              };
 
              let facility = match config.syslog_facility.to_lowercase().as_str() {
-                  "kern" => syslog::Facility::LOG_KERN,
-                  "user" => syslog::Facility::LOG_USER,
-                  "mail" => syslog::Facility::LOG_MAIL,
-                  "daemon" => syslog::Facility::LOG_DAEMON,
-                  "auth" => syslog::Facility::LOG_AUTH,
-                  "syslog" => syslog::Facility::LOG_SYSLOG,
-                  "lpr" => syslog::Facility::LOG_LPR,
-                  "news" => syslog::Facility::LOG_NEWS,
-                  "uucp" => syslog::Facility::LOG_UUCP,
-                  "cron" => syslog::Facility::LOG_CRON,
-                  "authpriv" => syslog::Facility::LOG_AUTHPRIV,
-                  "ftp" => syslog::Facility::LOG_FTP,
-                  "local0" => syslog::Facility::LOG_LOCAL0,
-                  "local1" => syslog::Facility::LOG_LOCAL1,
-                  "local2" => syslog::Facility::LOG_LOCAL2,
-                  "local3" => syslog::Facility::LOG_LOCAL3,
-                  "local4" => syslog::Facility::LOG_LOCAL4,
-                  "local5" => syslog::Facility::LOG_LOCAL5,
-                  "local6" => syslog::Facility::LOG_LOCAL6,
-                  "local7" => syslog::Facility::LOG_LOCAL7,
+                  "kern" => syslog::Facility::LOG_KERN, "user" => syslog::Facility::LOG_USER,
+                  "mail" => syslog::Facility::LOG_MAIL, "daemon" => syslog::Facility::LOG_DAEMON,
+                  "auth" => syslog::Facility::LOG_AUTH, "syslog" => syslog::Facility::LOG_SYSLOG,
+                  "lpr" => syslog::Facility::LOG_LPR, "news" => syslog::Facility::LOG_NEWS,
+                  "uucp" => syslog::Facility::LOG_UUCP, "cron" => syslog::Facility::LOG_CRON,
+                  "authpriv" => syslog::Facility::LOG_AUTHPRIV, "ftp" => syslog::Facility::LOG_FTP,
+                  "local0" => syslog::Facility::LOG_LOCAL0, "local1" => syslog::Facility::LOG_LOCAL1,
+                  "local2" => syslog::Facility::LOG_LOCAL2, "local3" => syslog::Facility::LOG_LOCAL3,
+                  "local4" => syslog::Facility::LOG_LOCAL4, "local5" => syslog::Facility::LOG_LOCAL5,
+                  "local6" => syslog::Facility::LOG_LOCAL6, "local7" => syslog::Facility::LOG_LOCAL7,
                   _ => {
                       eprintln!("[W] Invalid syslog facility '{}', using LOG_USER.", config.syslog_facility);
                       syslog::Facility::LOG_USER
@@ -103,16 +96,12 @@ pub fn setup_logging(config: &Config) -> Result<()> {
               };
 
              let formatter = syslog::Formatter3164 {
-                  facility,
-                  hostname: None,
-                  process: "fenrir-rust".into(),
-                  pid: 0,
+                  facility, hostname: None, process: "fenrir-rust".into(), pid: 0,
               };
 
             match syslog::unix(formatter) {
                  Ok(writer) => {
-                     // Use tracing_syslog::Syslog layer directly
-                     match tracing_syslog::Syslog::new(writer, syslog_level, level_mapper) {
+                     match Syslog::new(writer, syslog_level, level_mapper) { // Corrected: Use Syslog::new
                          Ok(syslog_layer) => {
                              layers.push(syslog_layer.boxed());
                          }
@@ -134,7 +123,6 @@ pub fn setup_logging(config: &Config) -> Result<()> {
         }
     }
 
-    // Initialize the combined subscriber
     tracing_subscriber::registry()
         .with(layers)
         .try_init()
@@ -143,7 +131,6 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     Ok(())
 }
 
-// Log filtering helper
 pub fn should_log(message: &str, config: &Config) -> bool {
     for excluded in &config.exclude_log_strings {
         if message.contains(excluded) {
@@ -153,8 +140,7 @@ pub fn should_log(message: &str, config: &Config) -> bool {
     true
 }
 
-// --- Macros for convenient logging ---
-// Corrected: Removed #[macro_export], wrapped bodies in {}
+// --- Macros --- (No #[macro_export])
 macro_rules! log_info {
     ($config:expr, $($arg:tt)*) => {{
         let msg = format!($($arg)*);
@@ -189,12 +175,11 @@ macro_rules! log_debug {
     }};
 }
 
-// Corrected: Added log_notice macro definition
 macro_rules! log_notice {
     ($config:expr, $($arg:tt)*) => {{
         let msg = format!($($arg)*);
         if $crate::logger::should_log(&msg, $config) {
-             tracing::info!("[N] {}", msg); // Add prefix for NOTICE level, using INFO severity
+             tracing::info!("[N] {}", msg);
         }
     }};
 }

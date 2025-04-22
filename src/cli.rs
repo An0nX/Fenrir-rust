@@ -1,6 +1,7 @@
 // fenrir-rust/src/cli.rs
 use clap::Parser;
 use std::path::PathBuf;
+use crate::config::Config; // Import Config for the function signature
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -15,8 +16,7 @@ pub struct CliArgs {
     #[arg(long, env = "FENRIR_DEBUG", action = clap::ArgAction::SetTrue)]
     pub debug: bool,
 
-    // --- Add other important config options as flags if desired ---
-    // Example: Override IOC file paths
+    // Override IOC file paths
     #[arg(long, value_name = "FILE", env="FENRIR_HASH_IOC_FILE")]
     pub hash_iocs: Option<PathBuf>,
 
@@ -29,30 +29,54 @@ pub struct CliArgs {
      #[arg(long, value_name = "FILE", env="FENRIR_C2_IOC_FILE")]
     pub c2_iocs: Option<PathBuf>,
 
-    // Example: Override log file path
+    // Override log file path
     #[arg(long, value_name = "PATTERN", env="FENRIR_LOG_FILE_PATTERN")]
     pub log_file: Option<String>,
 
-    // Example: Toggle checks
-    #[arg(long, env="FENRIR_DISABLE_C2_CHECK", action = clap::ArgAction::SetFalse)] // Note: Action reverses logic for disable flag
-    pub enable_c2_check: bool,
-     // Add similar flags for other checks if needed
+    // Toggle checks (use distinct flags for disabling)
+    #[arg(long, env="FENRIR_DISABLE_C2_CHECK", action = clap::ArgAction::SetTrue)]
+    pub disable_c2_check: bool,
 
-    // Example: Max file size
+    #[arg(long, env="FENRIR_DISABLE_HASH_CHECK", action = clap::ArgAction::SetTrue)]
+    pub disable_hash_check: bool,
+
+    #[arg(long, env="FENRIR_DISABLE_STRING_CHECK", action = clap::ArgAction::SetTrue)]
+    pub disable_string_check: bool,
+
+    #[arg(long, env="FENRIR_DISABLE_FILENAME_CHECK", action = clap::ArgAction::SetTrue)]
+    pub disable_filename_check: bool,
+
+    #[arg(long, env="FENRIR_ENABLE_TIMEFRAME_CHECK", action = clap::ArgAction::SetTrue)]
+    pub enable_timeframe_check: bool,
+
+    // Max file size
     #[arg(long, value_name = "KB", env="FENRIR_MAX_FILE_SIZE_KB")]
     pub max_file_size: Option<u64>,
 
-     // Example: Number of threads
+     // Number of threads
     #[arg(long, short='j', value_name = "N", env="FENRIR_NUM_THREADS")]
     pub threads: Option<usize>,
 
 }
 
-// Function to merge CLI args with Config (if CLI overrides are used)
-// This is an alternative to pure environment variable config
-// For now, we primarily use env vars via Config::load and let clap handle --debug.
-// pub fn merge_cli_into_config(mut config: Config, args: &CliArgs) -> Config {
-//     if let Some(path) = &args.hash_iocs { config.hash_ioc_file = path.clone(); }
-//     // ... merge others ...
-//     config
-// }
+// Corrected: Make function public
+pub fn apply_cli_overrides(mut config: Config, args: &CliArgs) -> Config {
+    if args.debug { config.debug = true; }
+    if let Some(path) = &args.hash_iocs { config.hash_ioc_file = path.clone(); }
+    if let Some(path) = &args.string_iocs { config.string_ioc_file = path.clone(); }
+    if let Some(path) = &args.filename_iocs { config.filename_ioc_file = path.clone(); }
+    if let Some(path) = &args.c2_iocs { config.c2_ioc_file = path.clone(); }
+    if let Some(pattern) = &args.log_file { config.log_file = Some(pattern.clone()); }
+
+    if args.disable_c2_check { config.enable_c2_check = false; }
+    if args.disable_hash_check { config.enable_hash_check = false; }
+    if args.disable_string_check { config.enable_string_check = false; }
+    if args.disable_filename_check { config.enable_filename_check = false; }
+
+    if args.enable_timeframe_check { config.enable_timeframe_check = true; }
+
+    if let Some(size) = args.max_file_size { config.max_file_size_kb = size; }
+    if let Some(threads) = args.threads { config.num_threads = threads; }
+
+    config
+}
