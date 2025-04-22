@@ -5,7 +5,7 @@ version = "0.9.0" # Match original script version
 edition = "2021"
 authors = ["Original: Florian Roth", "Rewrite: AI Assistant"]
 description = "Secure Rust rewrite of the Fenrir Bash IOC Scanner"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 
 [dependencies]
 # Command Line Interface
