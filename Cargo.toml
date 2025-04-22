@@ -5,7 +5,7 @@ version = "0.9.0" # Match original script version
 edition = "2021"
 authors = ["Original: Florian Roth", "Rewrite: AI Assistant"]
 description = "Secure Rust rewrite of the Fenrir Bash IOC Scanner"
-license = "MIT OR Apache-2.0" # Choose appropriate license
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 # Command Line Interface
@@ -16,16 +16,17 @@ lazy_static = "1.5"
 
 # Logging
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "local-time"] } # Added local-time
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "local-time"] }
 tracing-appender = "0.2"
-syslog = { version = "6.1", optional = true } # Ensure optional
+syslog = { version = "6.1", optional = true }
 
 # Filesystem & IO
 walkdir = "2.5"
 regex = "1.10"
 
 # Hashing
-md5 = "0.7"
+# Corrected: Updated md5 version to align with sha1/sha2 and digest trait usage
+md5 = "0.10"
 sha1 = { version = "0.10", features = ["oid"] }
 sha2 = "0.10"
 hex = "0.4"
@@ -50,7 +51,7 @@ thiserror = "1.0"
 rayon = "1.10"
 
 # Time
-chrono = { version = "0.4", features = ["now", "std"] } # Added std for chrono::Local
+chrono = { version = "0.4", features = ["now", "std"] }
 
 [features]
 # Feature flag for syslog
@@ -69,5 +70,3 @@ opt-level = 3
 [target.x86_64-unknown-linux-musl.dependencies]
 
 [target.aarch64-unknown-linux-musl.dependencies]
-
-# macOS does not support fully static binaries easily
