@@ -5,9 +5,9 @@ use crate::ioc::IocCollection;
 use crate::logger::{log_debug, log_warn};
 use digest::Digest; // Generic trait
 use hex;
-use md5::Md5; // Specific type for Md5::new()
-use sha1::Sha1; // Specific type for Sha1::new()
-use sha2::Sha256; // Specific type for Sha256::new()
+extern crate md5; // Specific type for Md5::new()
+extern crate sha1; // Specific type for Sha1::new()
+extern crate sha2; // Specific type for Sha256::new()
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
