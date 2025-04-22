@@ -1,0 +1,2 @@
+log4j-core
+# END - DO NOT REMOVE
