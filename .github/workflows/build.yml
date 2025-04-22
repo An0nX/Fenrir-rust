@@ -1,0 +1,175 @@
+name: Build Fenrir Rust
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  # Force static linking attempt for MUSL targets
+  RUSTFLAGS_MUSL: "-C target-feature=+crt-static"
+  # Attempt static CRT for windows (might need adjustment based on testing)
+  # RUSTFLAGS_WINDOWS: "-C target-feature=+crt-static"
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # Don't cancel all jobs if one fails
+      matrix:
+        include:
+          # Linux x86_64 (GNU - dynamically linked glibc)
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: fenrir-rust-x86_64-linux-gnu
+            use_cross: false
+          # Linux x86_64 (MUSL - statically linked libc) - Preferred for distribution
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: fenrir-rust-x86_64-linux-musl
+            use_cross: true # Use cross for musl builds usually
+          # Linux ARM64 (GNU)
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: fenrir-rust-aarch64-linux-gnu
+            use_cross: true
+          # Linux ARM64 (MUSL)
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            artifact_name: fenrir-rust-aarch64-linux-musl
+            use_cross: true
+          # macOS x86_64
+          - os: macos-latest # Usually x86_64 runner
+            target: x86_64-apple-darwin
+            artifact_name: fenrir-rust-x86_64-macos
+            use_cross: false
+          # macOS ARM64 (M1/M2)
+          - os: macos-latest # Runner might be x86_64, needs cross or native runner tag
+            target: aarch64-apple-darwin
+            artifact_name: fenrir-rust-aarch64-macos
+            use_cross: false # Assume runner supports it or rustup handles cross-compilation setup
+          # Windows x86_64 (MSVC)
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: fenrir-rust-x86_64-windows.exe # Add .exe suffix
+            use_cross: false
+          # Windows ARM64 (MSVC)
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            artifact_name: fenrir-rust-aarch64-windows.exe # Add .exe suffix
+            use_cross: false # Needs appropriate VS components installed on runner
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }} # Install the specific target
+
+    # Install cross-compilation tools if needed (especially for MUSL/ARM on x86_64 runners)
+    - name: Install cross-compilation prerequisites (Linux)
+      if: runner.os == 'Linux' && matrix.use_cross == true
+      run: |
+        sudo apt-get update -y
+        # Install linkers needed for cross-compilation targets
+        sudo apt-get install -y gcc-aarch64-linux-gnu # For aarch64-gnu
+        # MUSL targets often need musl-tools or similar, depending on setup
+        # If using 'cross' crate:
+        # cargo install cross --git https://github.com/cross-rs/cross
+        # Ensure Docker is running if using 'cross'
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/ # Cache build artifacts too
+        key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+    - name: Set Rustflags for Static Linking (if applicable)
+      shell: bash
+      run: |
+        if [[ "${{ matrix.target }}" == *"-musl"* ]]; then
+          echo "Setting RUSTFLAGS=${RUSTFLAGS_MUSL}"
+          echo "RUSTFLAGS=${RUSTFLAGS_MUSL}" >> $GITHUB_ENV
+        elif [[ "${{ matrix.target }}" == *"pc-windows-msvc"* && -n "${RUSTFLAGS_WINDOWS}" ]]; then
+           echo "Setting RUSTFLAGS=${RUSTFLAGS_WINDOWS}"
+           echo "RUSTFLAGS=${RUSTFLAGS_WINDOWS}" >> $GITHUB_ENV
+        fi
+
+    - name: Build binary
+      # If using 'cross': run: cross build --target ${{ matrix.target }} --release
+      run: cargo build --target ${{ matrix.target }} --release --verbose
+
+    - name: Lint code (Clippy)
+      run: cargo clippy --target ${{ matrix.target }} -- -D warnings # Fail on warnings
+
+    - name: Check formatting (fmt)
+      run: cargo fmt --check
+
+    # Add 'cargo audit' step here if integrated
+    # - name: Security Audit (cargo-audit)
+    #   run: cargo install cargo-audit && cargo audit
+
+    - name: Test code
+      # If using 'cross': run: cross test --target ${{ matrix.target }} --release
+      run: cargo test --target ${{ matrix.target }} --release --verbose
+
+    - name: Prepare artifact
+      shell: bash
+      run: |
+        ARTIFACT_DIR=artifact
+        mkdir -p $ARTIFACT_DIR
+        # Determine binary path based on OS and target
+        BINARY_NAME=${{ matrix.artifact_name }}
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          cp target/${{ matrix.target }}/release/fenrir-rust.exe $ARTIFACT_DIR/$BINARY_NAME
+        else
+          cp target/${{ matrix.target }}/release/fenrir-rust $ARTIFACT_DIR/$BINARY_NAME
+        fi
+        # Include IOC files and README with the artifact
+        cp README.md $ARTIFACT_DIR/
+        cp hash-iocs.txt $ARTIFACT_DIR/
+        cp string-iocs.txt $ARTIFACT_DIR/
+        cp filename-iocs.txt $ARTIFACT_DIR/
+        cp c2-iocs.txt $ARTIFACT_DIR/
+        ls -l $ARTIFACT_DIR
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }} # Use matrix variable for artifact name
+        path: artifact/ # Upload the directory content
+
+  # Optional: Job to check universal binary creation on macOS
+  # build-macos-universal:
+  #   name: Build macOS Universal Binary
+  #   runs-on: macos-latest
+  #   needs: build # Depend on individual architecture builds if universal combines them
+  #   if: false # Disable for now, enable if implementing universal build
+  #   steps:
+  #   - name: Checkout repository
+  #     uses: actions/checkout@v4
+  #   - name: Install Rust toolchain
+  #     uses: dtolnay/rust-toolchain@stable
+  #     with:
+  #       targets: "x86_64-apple-darwin,aarch64-apple-darwin"
+  #   # Steps to build both archs and lipo them together
+  #   # ... cargo build --target x86_64...
+  #   # ... cargo build --target aarch64...
+  #   # ... lipo -create ... -output fenrir-rust-universal-macos
+  #   - name: Upload Universal Artifact
+  #     uses: actions/upload-artifact@v4
+  #     with:
+  #       name: fenrir-rust-universal-macos
+  #       path: fenrir-rust-universal-macos
