@@ -2,18 +2,18 @@
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
-use crate::logger::{log_debug, log_warn}; // Use macros
+use crate::logger::{log_debug, log_warn};
 use digest::Digest; // Use the generic trait from digest crate
 use hex;
-use md5::Md5; // Keep this specific import for Md5::new()
-// use md5::Digest as Md5Digest; // Alias if Digest trait name clashes, but it shouldn't
+use md5::Md5; // Corrected: Keep specific Md5 import
+// Removed: use md5::Digest as Md5Digest;
 use sha1::Sha1;
 use sha2::Sha256;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 
-const HASH_BUFFER_SIZE: usize = 8192; // Read file in chunks
+const HASH_BUFFER_SIZE: usize = 8192;
 
 pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> Result<()> {
     if !config.enable_hash_check || iocs.hashes.is_empty() {
@@ -25,6 +25,7 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
     let file = File::open(path).map_err(|e| FenrirError::FileAccess { path: path.to_path_buf(), source: e })?;
     let mut reader = BufReader::with_capacity(HASH_BUFFER_SIZE, file);
 
+    // Use the specific types for instantiation
     let mut md5_hasher = Md5::new();
     let mut sha1_hasher = Sha1::new();
     let mut sha256_hasher = Sha256::new();
@@ -52,15 +53,12 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
 
     log_debug!(config, "Checking hashes for {}: MD5={}, SHA1={}, SHA256={}", path.display(), md5_hex, sha1_hex, sha256_hex);
 
-    // Check MD5
     if let Some(description) = iocs.hashes.get(&md5_hex) {
         log_warn!(config, "[!] Hash match found FILE: {} HASH: {} (MD5) DESCRIPTION: {}", path.display(), md5_hex, description);
     }
-    // Check SHA1
     if let Some(description) = iocs.hashes.get(&sha1_hex) {
          log_warn!(config, "[!] Hash match found FILE: {} HASH: {} (SHA1) DESCRIPTION: {}", path.display(), sha1_hex, description);
     }
-    // Check SHA256
     if let Some(description) = iocs.hashes.get(&sha256_hex) {
         log_warn!(config, "[!] Hash match found FILE: {} HASH: {} (SHA256) DESCRIPTION: {}", path.display(), sha256_hex, description);
     }

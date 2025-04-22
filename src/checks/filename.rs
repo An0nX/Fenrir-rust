@@ -1,7 +1,7 @@
 // fenrir-rust/src/checks/filename.rs
 use crate::config::Config;
 use crate::ioc::IocCollection;
-use crate::logger::log_warn; // Use the macro
+use crate::logger::log_warn;
 use std::path::Path;
 
 pub fn check_filename(path: &Path, iocs: &IocCollection, config: &Config) {

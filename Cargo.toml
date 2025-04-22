@@ -9,79 +9,65 @@ license = "MIT OR Apache-2.0" # Choose appropriate license
 
 [dependencies]
 # Command Line Interface
-clap = { version = "4.5", features = ["derive", "env"] } # Updated version from log
+clap = { version = "4.5", features = ["derive", "env"] }
 
-# Configuration - Using environment variables primarily for simplicity matching script
-# config = { version = "0.13", features = ["toml"] } # Alternative: file-based config
-# serde = { version = "1.0", features = ["derive"] } # Needed for config crate
+# Configuration
+lazy_static = "1.5"
 
 # Logging
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
-tracing-appender = "0.2" # For file logging rotation
-syslog = { version = "6.1", optional = true } # Ensure optional, updated version
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "local-time"] } # Added local-time
+tracing-appender = "0.2"
+syslog = { version = "6.1", optional = true } # Ensure optional
 
 # Filesystem & IO
-walkdir = "2.5" # Updated version
-regex = "1.10" # Updated version
-lazy_static = "1.5" # Updated version
+walkdir = "2.5"
+regex = "1.10"
 
 # Hashing
 md5 = "0.7"
-sha1 = { version = "0.10", features = ["oid"] } # Keep oid feature
+sha1 = { version = "0.10", features = ["oid"] }
 sha2 = "0.10"
 hex = "0.4"
-digest = "0.10"
+digest = "0.10" # Generic trait for hashers
 
 # String Matching
 aho-corasick = "1.1"
 
 # Compression Libraries
-flate2 = "1.0" # Use 1.0, not 1.1.1 from log unless needed
+flate2 = "1.0"
 bzip2 = "0.4"
 
-# Network & System Info (for C2 checks and SysInfo)
-# Using std::process::Command for lsof initially as direct replacement is complex
-# sysinfo = "0.30" # Alternative for system info, less portable for network connections than lsof
-hostname = "0.3" # Added dependency
-num_cpus = "1.16" # Added dependency
-
+# Network & System Info
+hostname = "0.3"
+num_cpus = "1.16"
+# Using std::process::Command for lsof initially
 
 # Error Handling
 thiserror = "1.0"
 
 # Concurrency
-rayon = "1.10" # Updated version
+rayon = "1.10"
 
 # Time
-chrono = { version = "0.4", features = ["now"] } # Explicitly add "now" feature needed by tracing-appender/main
+chrono = { version = "0.4", features = ["now", "std"] } # Added std for chrono::Local
 
 [features]
-# Feature flag for syslog - make sure 'syslog' dependency above is optional = true
+# Feature flag for syslog
 default = []
 syslog_logging = ["dep:syslog"]
 
-# Profile for release builds - optimize for size and speed, enable static linking where possible
+# Profile for release builds
 [profile.release]
-lto = true           # Link Time Optimization
-codegen-units = 1    # Maximize optimization opportunities
-panic = "abort"      # Abort on panic for smaller binary size
-strip = true         # Strip symbols from binary
-opt-level = 3        # Optimize for speed (though 'z' optimizes for size)
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = 3
 
 # Attempt static linking for linux-musl target
 [target.x86_64-unknown-linux-musl.dependencies]
-# No specific overrides needed typically, relies on MUSL toolchain
 
 [target.aarch64-unknown-linux-musl.dependencies]
-# No specific overrides needed typically, relies on MUSL toolchain
-
-# Windows MSVC doesn't easily support full static linking of CRT, but we try
-# Remove these unused keys identified by the warning
-# [target.x86_64-pc-windows-msvc.rustflags]
-# rustflags = ["-C", "target-feature=+crt-static"] # Enables static CRT linking
-
-# [target.aarch64-pc-windows-msvc.rustflags]
-# rustflags = ["-C", "target-feature=+crt-static"] # Enables static CRT linking
 
 # macOS does not support fully static binaries easily

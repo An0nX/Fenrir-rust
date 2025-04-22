@@ -1,13 +1,12 @@
 // fenrir-rust/src/ioc.rs
-uuse crate::config::Config;
+use crate::config::Config; // Corrected: use instead of uuse
 use crate::errors::{FenrirError, Result};
 use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path; // Removed PathBuf
+use std::path::Path; // Corrected: Removed unused PathBuf
 
-// ... (rest of file is likely okay, just removed unused PathBuf import)
 #[derive(Debug, Clone)]
 pub struct IocCollection {
     // Hashes: Store as lowercase hex strings
@@ -36,8 +35,8 @@ impl IocCollection {
         let string_ioc_matcher = if !all_strings_for_matcher.is_empty() {
             Some(
                 AhoCorasickBuilder::new()
-                    .match_kind(MatchKind::LeftmostFirst) // Standard matching
-                    .ascii_case_insensitive(false) // Match case-sensitively like grep -F
+                    .match_kind(MatchKind::LeftmostFirst)
+                    .ascii_case_insensitive(false) // Match case-sensitively
                     .build(&all_strings_for_matcher)
                     .map_err(|e| FenrirError::StringMatching(format!("AhoCorasick build error: {}", e)))?
             )
@@ -48,9 +47,9 @@ impl IocCollection {
         Ok(IocCollection {
             hashes,
             string_ioc_matcher,
-            string_ioc_list, // Store original list for match reporting
+            string_ioc_list,
             filename_iocs,
-            c2_iocs, // Keep separate set for C2-specific checks (lsof)
+            c2_iocs,
         })
     }
 }
@@ -66,15 +65,17 @@ fn read_lines(path: &Path) -> Result<impl Iterator<Item = Result<String>>> {
 
 fn load_hash_iocs(path: &Path) -> Result<HashMap<String, String>> {
     let mut iocs = HashMap::new();
+    if !path.exists() {
+        tracing::warn!("Hash IOC file not found: {}", path.display());
+        return Ok(iocs); // Return empty map if file doesn't exist
+    }
     for line_res in read_lines(path)? {
         let line = line_res?.trim().to_string();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        // Format: hash;description
         if let Some((hash, description)) = line.split_once(';') {
             let hash_trimmed = hash.trim().to_lowercase();
-             // Basic validation: Check if it looks like a hex string (MD5, SHA1, SHA256 lengths)
              if (hash_trimmed.len() == 32 || hash_trimmed.len() == 40 || hash_trimmed.len() == 64)
                 && hash_trimmed.chars().all(|c| c.is_ascii_hexdigit())
              {
@@ -91,42 +92,48 @@ fn load_hash_iocs(path: &Path) -> Result<HashMap<String, String>> {
 
 fn load_filename_iocs(path: &Path) -> Result<HashSet<String>> {
     let mut iocs = HashSet::new();
+    if !path.exists() {
+        tracing::warn!("Filename IOC file not found: {}", path.display());
+        return Ok(iocs);
+    }
     for line_res in read_lines(path)? {
         let line = line_res?.trim().to_string();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        // Store lowercase for case-insensitive comparison later if needed,
-        // but script uses case-sensitive substring match. Let's stick to that.
-        // Use contains() on the path string later.
         iocs.insert(line);
     }
     Ok(iocs)
 }
 
-// Load both string and C2 IOCs from their respective files
 fn load_string_and_c2_iocs(string_path: &Path, c2_path: &Path) -> Result<(Vec<String>, HashSet<String>)> {
     let mut string_iocs = Vec::new();
     let mut c2_iocs = HashSet::new();
 
     // Load strings
-    for line_res in read_lines(string_path)? {
-        let line = line_res?.trim().to_string();
-        if line.is_empty() || line.starts_with('#') || line.starts_with("//") { // Handle comments
-            continue;
+    if !string_path.exists() {
+        tracing::warn!("String IOC file not found: {}", string_path.display());
+    } else {
+        for line_res in read_lines(string_path)? {
+            let line = line_res?.trim().to_string();
+            if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
+                continue;
+            }
+            string_iocs.push(line);
         }
-        // Don't lowercase here, grep -F is case-sensitive
-        string_iocs.push(line);
     }
 
     // Load C2s
-    for line_res in read_lines(c2_path)? {
-        let line = line_res?.trim().to_string();
-         if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
-            continue;
+    if !c2_path.exists() {
+         tracing::warn!("C2 IOC file not found: {}", c2_path.display());
+    } else {
+        for line_res in read_lines(c2_path)? {
+            let line = line_res?.trim().to_string();
+            if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
+                continue;
+            }
+            c2_iocs.insert(line);
         }
-        // Don't lowercase here either, match C2s exactly
-        c2_iocs.insert(line);
     }
 
     Ok((string_iocs, c2_iocs))

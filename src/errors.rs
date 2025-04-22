@@ -53,10 +53,10 @@ pub enum FenrirError {
     },
 
     #[error("Hashing error: {0}")]
-    Hashing(String), // Keep generic for now
+    Hashing(String),
 
     #[error("String matching error: {0}")]
-    StringMatching(String), // Keep generic for now
+    StringMatching(String),
 
     #[error("Logging setup failed: {0}")]
     LoggingSetup(String),
@@ -64,8 +64,9 @@ pub enum FenrirError {
     #[error("System information retrieval failed: {0}")]
     SystemInfo(String),
 
-    #[error("Invalid file extension: '{ext}'")] // Use named field
-    InvalidExtension { ext: String }, // Changed from tuple variant
+    // Corrected: Use named field 'ext'
+    #[error("Invalid file extension: '{ext}'")]
+    InvalidExtension { ext: String },
 
     #[error("Date/Time parsing or conversion error: {0}")]
     DateTimeError(#[from] chrono::ParseError),
@@ -79,7 +80,6 @@ pub enum FenrirError {
     #[error("Walkdir error: {0}")]
     Walkdir(#[from] walkdir::Error),
 
-    // Add more specific errors as needed
 }
 
 // Define a type alias for Result<T, FenrirError>

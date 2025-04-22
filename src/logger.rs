@@ -18,12 +18,12 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     if config.log_to_cmdline {
         let cmd_level = if config.debug { LevelFilter::DEBUG } else { LevelFilter::INFO };
         let cmd_layer = tracing_subscriber::fmt::layer()
-            .with_writer(std::io::stderr) // Write to stderr like the script
-            .with_target(false) // Don't print module paths
+            .with_writer(std::io::stderr)
+            .with_target(false)
             .with_level(true)
-            .with_ansi(true) // Enable colors if terminal supports it
-            .with_span_events(FmtSpan::NONE) // No span events
-            .without_time() // Mimic script's simple output
+            .with_ansi(true)
+            .with_span_events(FmtSpan::NONE)
+            .without_time()
              .with_filter(cmd_level);
         layers.push(cmd_layer.boxed());
     }
@@ -31,35 +31,31 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     // File Logger
     if config.log_to_file {
          if let Some(log_path) = config.get_current_log_file_path()? {
-            // Ensure parent directory exists
             if let Some(parent_dir) = log_path.parent() {
                 std::fs::create_dir_all(parent_dir)
-                   .map_err(|e| FenrirError::Io(e))?; // Propagate IO error
+                   .map_err(|e| FenrirError::Io(e))?;
             }
 
             let file_appender = tracing_appender::rolling::daily(
-                log_path.parent().unwrap_or_else(|| Path::new(".")), // Log dir
-                log_path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("fenrir.log")), // Log filename
+                log_path.parent().unwrap_or_else(|| Path::new(".")),
+                log_path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("fenrir.log")),
             );
             let (non_blocking_appender, guard) = tracing_appender::non_blocking(file_appender);
 
-            // Store the guard to prevent logs from being dropped prematurely
             *LOG_GUARD.lock().unwrap() = Some(guard);
 
             let file_level = if config.debug { LevelFilter::DEBUG } else { LevelFilter::INFO };
             let file_layer = tracing_subscriber::fmt::layer()
                 .with_writer(non_blocking_appender)
-                .with_ansi(false) // No ANSI colors in file
+                .with_ansi(false)
                 .with_target(false)
                 .with_level(true)
                 .with_span_events(FmtSpan::NONE)
-                 // Add timestamp to file logs for better context
+                // Corrected: Use local-time feature for timestamps
                 .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339())
                 .with_filter(file_level);
             layers.push(file_layer.boxed());
         } else {
-             // Log this warning using tracing *before* full init might be tricky
-             // eprintln! used before logger setup, maybe ok here if console logger is added first
              eprintln!("[W] File logging enabled but could not determine log file path.");
         }
     }
@@ -69,18 +65,16 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     {
         if config.log_to_syslog {
             let syslog_level = if config.debug { LevelFilter::DEBUG } else { LevelFilter::INFO };
-             // Map tracing level to syslog level (adjust mapping as needed)
              let level_mapper = |level: &tracing::Level| -> syslog::Severity {
                  match *level {
                      tracing::Level::ERROR => syslog::Severity::LOG_ERR,
                      tracing::Level::WARN => syslog::Severity::LOG_WARNING,
                      tracing::Level::INFO => syslog::Severity::LOG_INFO,
                      tracing::Level::DEBUG => syslog::Severity::LOG_DEBUG,
-                     tracing::Level::TRACE => syslog::Severity::LOG_DEBUG, // Syslog doesn't have trace
+                     tracing::Level::TRACE => syslog::Severity::LOG_DEBUG,
                  }
              };
 
-             // Parse facility string
              let facility = match config.syslog_facility.to_lowercase().as_str() {
                   "kern" => syslog::Facility::LOG_KERN,
                   "user" => syslog::Facility::LOG_USER,
@@ -110,9 +104,9 @@ pub fn setup_logging(config: &Config) -> Result<()> {
 
              let formatter = syslog::Formatter3164 {
                   facility,
-                  hostname: None, // Let syslog add it
+                  hostname: None,
                   process: "fenrir-rust".into(),
-                  pid: 0, // Let syslog add it
+                  pid: 0,
               };
 
             match syslog::unix(formatter) {
@@ -140,7 +134,6 @@ pub fn setup_logging(config: &Config) -> Result<()> {
         }
     }
 
-
     // Initialize the combined subscriber
     tracing_subscriber::registry()
         .with(layers)
@@ -150,7 +143,7 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     Ok(())
 }
 
-// Log filtering helper (to replace script's EXCLUDE_STRINGS)
+// Log filtering helper
 pub fn should_log(message: &str, config: &Config) -> bool {
     for excluded in &config.exclude_log_strings {
         if message.contains(excluded) {
@@ -160,10 +153,10 @@ pub fn should_log(message: &str, config: &Config) -> bool {
     true
 }
 
-// --- Macros for convenient logging respecting exclusions ---
-// NOTE: Removed #[macro_export]
+// --- Macros for convenient logging ---
+// Corrected: Removed #[macro_export], wrapped bodies in {}
 macro_rules! log_info {
-    ($config:expr, $($arg:tt)*) => {{ // Wrap body in braces
+    ($config:expr, $($arg:tt)*) => {{
         let msg = format!($($arg)*);
         if $crate::logger::should_log(&msg, $config) {
             tracing::info!("{}", msg);
@@ -172,49 +165,43 @@ macro_rules! log_info {
 }
 
 macro_rules! log_warn {
-     ($config:expr, $($arg:tt)*) => {{ // Wrap body in braces
+     ($config:expr, $($arg:tt)*) => {{
         let msg = format!($($arg)*);
         if $crate::logger::should_log(&msg, $config) {
-            tracing::warn!("{}", msg); // Prefix handled by logger automatically
+            tracing::warn!("{}", msg);
         }
     }};
 }
 
 macro_rules! log_error {
-     ($config:expr, $($arg:tt)*) => {{ // Wrap body in braces
+     ($config:expr, $($arg:tt)*) => {{
         let msg = format!($($arg)*);
-         // Error messages usually bypass exclusion filters
          tracing::error!("{}", msg);
     }};
 }
 
 macro_rules! log_debug {
-    ($config:expr, $($arg:tt)*) => {{ // Wrap body in braces
-        // Debug messages might also bypass exclusions if needed, or apply filter
+    ($config:expr, $($arg:tt)*) => {{
         let msg = format!($($arg)*);
-        // Check config.debug directly inside the macro
         if $config.debug && $crate::logger::should_log(&msg, $config) {
             tracing::debug!("{}", msg);
         }
     }};
 }
 
-// Added log_notice macro definition
+// Corrected: Added log_notice macro definition
 macro_rules! log_notice {
-    ($config:expr, $($arg:tt)*) => {{ // Wrap body in braces
+    ($config:expr, $($arg:tt)*) => {{
         let msg = format!($($arg)*);
-        // Log notice messages regardless of exclusion? Or apply filter? Apply filter for consistency.
         if $crate::logger::should_log(&msg, $config) {
-             // Use info level, maybe add a prefix manually if needed, tracing handles level prefix
-             tracing::info!("{}", msg);
+             tracing::info!("[N] {}", msg); // Add prefix for NOTICE level, using INFO severity
         }
     }};
 }
-
 
 // Re-export for convenience within the crate
 pub(crate) use log_debug;
 pub(crate) use log_error;
 pub(crate) use log_info;
 pub(crate) use log_warn;
-pub(crate) use log_notice; // Added export
+pub(crate) use log_notice;
