@@ -94,7 +94,10 @@ jobs:
         echo "Setting RUSTFLAGS=${RUSTFLAGS_MUSL}"
         echo "RUSTFLAGS=${RUSTFLAGS_MUSL}" >> $GITHUB_ENV
 
-    # ******** ADDED STEP: Clean target directory ********
+    # ******** ADDED STEP: Update dependencies ********
+    - name: Update dependencies
+      run: cargo update --verbose
+
     - name: Clean target directory (before build)
       run: rm -rf target
 
