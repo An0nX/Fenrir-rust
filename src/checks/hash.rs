@@ -1,13 +1,18 @@
 // fenrir-rust/src/checks/hash.rs
+
+// УБРАНО: extern crate md5; // Ненужно и не помогло
+// УБРАНО: extern crate sha1; // Ненужно
+// УБРАНО: extern crate sha2; // Ненужно
+
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
 use crate::logger::{log_debug, log_warn};
-use digest::Digest; // Generic trait
+use digest::Digest; // <- Импорт трейта для методов .update() / .finalize()
 use hex;
-extern crate md5; // Specific type for Md5::new()
-extern crate sha1; // Specific type for Sha1::new()
-extern crate sha2; // Specific type for Sha256::new()
+use md5::Md5;       // <- Импорт типа Md5
+use sha1::Sha1;     // <- Импорт типа Sha1
+use sha2::Sha256;   // <- Импорт типа Sha256 из крейта sha2
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -24,15 +29,18 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
     let file = File::open(path).map_err(|e| FenrirError::FileAccess { path: path.to_path_buf(), source: e })?;
     let mut reader = BufReader::with_capacity(HASH_BUFFER_SIZE, file);
 
-    let mut md5_hasher = md5::new();
-    let mut sha1_hasher = sha1::new();
-    let mut sha256_hasher = sha256::new();
+    // --- ИСПРАВЛЕНО: Используем TypeName::new() ---
+    let mut md5_hasher = Md5::new();
+    let mut sha1_hasher = Sha1::new();
+    let mut sha256_hasher = Sha256::new();
+    // ---------------------------------------------
 
     let mut buf = [0u8; HASH_BUFFER_SIZE];
     loop {
         let bytes_read = reader.read(&mut buf).map_err(|e| FenrirError::FileAccess { path: path.to_path_buf(), source: e })?;
         if bytes_read == 0 { break; }
         let data_slice = &buf[..bytes_read];
+        // Используем методы из трейта digest::Digest
         md5_hasher.update(data_slice);
         sha1_hasher.update(data_slice);
         sha256_hasher.update(data_slice);
