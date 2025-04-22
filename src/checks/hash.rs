@@ -24,9 +24,9 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
     let file = File::open(path).map_err(|e| FenrirError::FileAccess { path: path.to_path_buf(), source: e })?;
     let mut reader = BufReader::with_capacity(HASH_BUFFER_SIZE, file);
 
-    let mut md5_hasher = Md5::new();
-    let mut sha1_hasher = Sha1::new();
-    let mut sha256_hasher = Sha256::new();
+    let mut md5_hasher = md5::new();
+    let mut sha1_hasher = sha1::new();
+    let mut sha256_hasher = sha256::new();
 
     let mut buf = [0u8; HASH_BUFFER_SIZE];
     loop {
