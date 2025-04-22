@@ -26,7 +26,7 @@ regex = "1.10"
 
 # Hashing
 # Corrected: Updated md5 version to align with sha1/sha2 and digest trait usage
-md5 = "0.10"
+md5 = "0.7.0"
 sha1 = { version = "0.10", features = ["oid"] }
 sha2 = "0.10"
 hex = "0.4"
