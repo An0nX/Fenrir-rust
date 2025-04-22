@@ -1,0 +1,72 @@
+name: Release Fenrir Rust
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on tags like v0.9.0, v1.0.0
+
+jobs:
+  # First, run the build job to ensure the code compiles and tests pass on all targets
+  build-matrix:
+    uses: ./.github/workflows/build.yml # Reuse the build workflow
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-matrix # Wait for the build jobs to complete successfully
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Permission to create releases and upload assets
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      # No 'name' specified, downloads all artifacts produced by the workflow run
+      # Artifacts will be downloaded into directories named after the artifact name
+      with:
+        path: artifacts/ # Download into an 'artifacts' directory
+
+    - name: List downloaded artifacts
+      run: ls -R artifacts/
+
+    - name: Prepare release assets and checksums
+      id: prepare_assets
+      shell: bash
+      run: |
+        RELEASE_DIR="release-assets"
+        CHECKSUM_FILE="checksums.sha256"
+        mkdir -p $RELEASE_DIR
+        echo "--- Moving assets ---"
+        # Move all binaries and associated files from subdirs to the release dir
+        find artifacts/ -type f -print -exec mv {} $RELEASE_DIR/ \;
+
+        echo "--- Generating Checksums ---"
+        cd $RELEASE_DIR
+        # Generate checksums for all files in the release directory
+        sha256sum * > $CHECKSUM_FILE
+        echo "--- Checksum File ---"
+        cat $CHECKSUM_FILE
+        cd .. # Go back to root
+        # Set output for release body (optional)
+        echo "checksum_content<<EOF" >> $GITHUB_OUTPUT
+        cat $RELEASE_DIR/$CHECKSUM_FILE >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }} # Use the tag that triggered the workflow
+        name: Fenrir Rust ${{ github.ref_name }} # Release title
+        body: | # Optional: Add release notes or checksums
+          Fenrir Rust release based on tag ${{ github.ref_name }}.
+
+          **SHA256 Checksums:**
+          ```
+          ${{ steps.prepare_assets.outputs.checksum_content }}
+          ```
+        draft: false # Set to true to create a draft release first
+        prerelease: false # Set to true if this is a pre-release
+        files: | # List all files to attach from the release directory
+          release-assets/*
