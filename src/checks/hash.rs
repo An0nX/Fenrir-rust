@@ -10,7 +10,7 @@ use crate::ioc::IocCollection;
 use crate::logger::{log_debug, log_warn};
 use digest::Digest; // <- Импорт трейта для методов .update() / .finalize()
 use hex;
-use md5::Md5;       // <- Импорт типа Md5
+use md5::{Digest as _, Md5};       // <- Импорт типа Md5
 use sha1::Sha1;     // <- Импорт типа Sha1
 use sha2::Sha256;   // <- Импорт типа Sha256 из крейта sha2
 use std::fs::File;
