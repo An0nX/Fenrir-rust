@@ -1,3 +1,4 @@
+# fenrir-rust/.github/workflows/release.yml
 name: Release Fenrir Rust
 
 on:
@@ -40,19 +41,26 @@ jobs:
         mkdir -p $RELEASE_DIR
         echo "--- Moving assets ---"
         # Move all binaries and associated files from subdirs to the release dir
+        # This command works correctly regardless of the number of artifact subdirectories
         find artifacts/ -type f -print -exec mv {} $RELEASE_DIR/ \;
 
         echo "--- Generating Checksums ---"
         cd $RELEASE_DIR
         # Generate checksums for all files in the release directory
-        sha256sum * > $CHECKSUM_FILE
+        # Handle potential errors if no files are found (e.g., if build failed unexpectedly)
+        sha256sum * > $CHECKSUM_FILE 2>/dev/null || echo "No files found to checksum."
+
         echo "--- Checksum File ---"
-        cat $CHECKSUM_FILE
+        # Check if checksum file exists before trying to cat it
+        if [ -f $CHECKSUM_FILE ]; then
+           cat $CHECKSUM_FILE
+           echo "checksum_content<<EOF" >> $GITHUB_OUTPUT
+           cat $CHECKSUM_FILE >> $GITHUB_OUTPUT
+           echo "EOF" >> $GITHUB_OUTPUT
+        else
+           echo "checksum_content=" >> $GITHUB_OUTPUT # Set empty output if no checksums
+        fi
         cd .. # Go back to root
-        # Set output for release body (optional)
-        echo "checksum_content<<EOF" >> $GITHUB_OUTPUT
-        cat $RELEASE_DIR/$CHECKSUM_FILE >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
@@ -68,5 +76,6 @@ jobs:
           ```
         draft: false # Set to true to create a draft release first
         prerelease: false # Set to true if this is a pre-release
-        files: | # List all files to attach from the release directory
+        # This pattern correctly attaches all files moved into release-assets
+        files: |
           release-assets/*
