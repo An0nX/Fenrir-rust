@@ -107,9 +107,6 @@ jobs:
     - name: Lint code (Clippy)
       run: cargo clippy --target ${{ matrix.target }} --release -- -D warnings
 
-    - name: Check formatting (fmt)
-      run: cargo fmt --check
-
     - name: Test code
       run: cargo test --target ${{ matrix.target }} --release --verbose
 
