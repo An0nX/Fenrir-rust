@@ -98,9 +98,6 @@ jobs:
     - name: Update dependencies
       run: cargo update --verbose
 
-    - name: Clean target directory (before build)
-      run: rm -rf target
-
     - name: Build binary
       run: cargo build --target ${{ matrix.target }} --release --verbose
 
