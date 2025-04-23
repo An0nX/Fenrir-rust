@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
 use crate::logger::{log_debug, log_warn}; // Use macros
-use hex; // Keep hex for converting output bytes to string
+use hex;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -65,7 +65,6 @@ mod md5_impl {
                 data_idx += fill_len;
 
                 if self.buffer_len == 64 {
-                    // Copy buffer *before* calling process_block to avoid borrow conflict
                     let buffer_copy = self.buffer;
                     self.process_block(&buffer_copy);
                     self.buffer_len = 0;
@@ -73,7 +72,6 @@ mod md5_impl {
             }
 
             while data.len() - data_idx >= 64 {
-                // Directly process slices from input data
                 self.process_block(&data[data_idx..data_idx + 64]);
                 data_idx += 64;
             }
@@ -95,20 +93,16 @@ mod md5_impl {
                 for i in self.buffer_len..64 {
                     self.buffer[i] = 0;
                 }
-                // Copy buffer *before* calling process_block
                 let buffer_copy = self.buffer;
                 self.process_block(&buffer_copy);
-                self.buffer_len = 0; // Reset buffer_len after processing
+                self.buffer_len = 0;
             }
-             // Clear remaining buffer up to position 56
              for i in self.buffer_len..56 {
                 self.buffer[i] = 0;
             }
 
             self.buffer[56..64].copy_from_slice(&total_bits.to_le_bytes());
 
-            // Process the final block (no borrow conflict here as self is moved)
-            // Copy buffer *before* calling process_block
             let buffer_copy = self.buffer;
             self.process_block(&buffer_copy);
 
@@ -120,7 +114,6 @@ mod md5_impl {
             result
         }
 
-        // process_block takes an immutable slice, no self borrow conflict here
         fn process_block(&mut self, block: &[u8]) {
              assert!(block.len() == 64);
             let mut m = [0u32; 16];
@@ -146,8 +139,9 @@ mod md5_impl {
                 d = c;
                 c = b;
                 let rot = S[i / 16][i % 4];
+                // Remove unnecessary cast: m[g] instead of m[g as usize]
                 b = b.wrapping_add(
-                     a.wrapping_add(f).wrapping_add(T[i]).wrapping_add(m[g as usize])
+                     a.wrapping_add(f).wrapping_add(T[i]).wrapping_add(m[g])
                      .rotate_left(rot)
                 );
                 a = temp;
@@ -200,7 +194,6 @@ mod sha1_impl {
                  data_idx += fill_len;
 
                  if self.buffer_len == 64 {
-                     // Copy buffer *before* calling process_block
                      let buffer_copy = self.buffer;
                      self.process_block(&buffer_copy);
                      self.buffer_len = 0;
@@ -227,19 +220,15 @@ mod sha1_impl {
 
             if self.buffer_len > 56 {
                 for i in self.buffer_len..64 { self.buffer[i] = 0; }
-                // Copy buffer *before* calling process_block
                 let buffer_copy = self.buffer;
                 self.process_block(&buffer_copy);
-                self.buffer_len = 0; // Reset buffer_len after processing
+                self.buffer_len = 0;
             }
-             // Clear remaining buffer up to position 56
             for i in self.buffer_len..56 { self.buffer[i] = 0; }
 
 
             self.buffer[56..64].copy_from_slice(&total_bits.to_be_bytes());
 
-            // Process final block
-            // Copy buffer *before* calling process_block
             let buffer_copy = self.buffer;
             self.process_block(&buffer_copy);
 
@@ -269,6 +258,8 @@ mod sha1_impl {
             let mut d = self.h[3];
             let mut e = self.h[4];
 
+            // Suppress the incorrect clippy warning for this specific loop
+            #[allow(clippy::needless_range_loop)]
             for i in 0..80 {
                 let (f, k) = match i {
                      0..=19 => (((b & c) | (!b & d)), K[0]),
@@ -355,7 +346,6 @@ mod sha256_impl {
                  data_idx += fill_len;
 
                  if self.buffer_len == 64 {
-                     // Copy buffer *before* calling process_block
                      let buffer_copy = self.buffer;
                      self.process_block(&buffer_copy);
                      self.buffer_len = 0;
@@ -382,18 +372,14 @@ mod sha256_impl {
 
             if self.buffer_len > 56 {
                 for i in self.buffer_len..64 { self.buffer[i] = 0; }
-                // Copy buffer *before* calling process_block
                 let buffer_copy = self.buffer;
                 self.process_block(&buffer_copy);
-                self.buffer_len = 0; // Reset buffer_len after processing
+                self.buffer_len = 0;
             }
-             // Clear remaining buffer up to position 56
              for i in self.buffer_len..56 { self.buffer[i] = 0; }
 
             self.buffer[56..64].copy_from_slice(&total_bits.to_be_bytes());
 
-            // Process final block
-            // Copy buffer *before* calling process_block
             let buffer_copy = self.buffer;
             self.process_block(&buffer_copy);
 
@@ -464,7 +450,6 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
         return Ok(());
     }
 
-    // ** WARNING ** Using manually implemented hash functions. See disclaimer above.
     log_debug!(config, "Hashing file (using manual implementation): {}", path.display());
 
     let file = File::open(path).map_err(|e| FenrirError::FileAccess { path: path.to_path_buf(), source: e })?;
@@ -496,15 +481,12 @@ pub fn check_file_hashes(path: &Path, iocs: &IocCollection, config: &Config) -> 
 
     log_debug!(config, "Checking hashes for {}: MD5={}, SHA1={}, SHA256={}", path.display(), md5_hex, sha1_hex, sha256_hex);
 
-    // Check MD5
     if let Some(description) = iocs.hashes.get(&md5_hex) {
         log_warn!(config, "[!] Hash match found FILE: {} HASH: {} (MD5) DESCRIPTION: {}", path.display(), md5_hex, description);
     }
-    // Check SHA1
     if let Some(description) = iocs.hashes.get(&sha1_hex) {
          log_warn!(config, "[!] Hash match found FILE: {} HASH: {} (SHA1 - WARNING: SHA1 is cryptographically weak!) DESCRIPTION: {}", path.display(), sha1_hex, description);
     }
-    // Check SHA256
     if let Some(description) = iocs.hashes.get(&sha256_hex) {
         log_warn!(config, "[!] Hash match found FILE: {} HASH: {} (SHA256) DESCRIPTION: {}", path.display(), sha256_hex, description);
     }
