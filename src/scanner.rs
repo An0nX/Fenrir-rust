@@ -3,7 +3,8 @@ use crate::checks::{filename, hash, strings, timeframe};
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
-// Удалены импорты: use crate::{log_debug, log_info};
+// Возвращаем импорты макросов для этого модуля
+use crate::{log_debug, log_info};
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};

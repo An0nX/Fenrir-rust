@@ -1,7 +1,8 @@
 // fenrir-rust/src/system_info.rs
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
-// Удален импорт: use crate::log_info;
+// Возвращаем импорт макроса
+use crate::log_info;
 use lazy_static::lazy_static;
 use std::fs;
 use std::io;
@@ -15,7 +16,6 @@ pub fn get_hostname() -> Result<String> {
 }
 
 pub fn log_system_info(config: &Config) -> Result<()> {
-    // Вызываем макрос напрямую
     log_info!(config, "Gathering system information...");
 
     let hostname = get_hostname()?;

@@ -2,7 +2,8 @@
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
-// Удалены импорты: use crate::{log_debug, log_warn};
+// Возвращаем импорты макросов
+use crate::{log_debug, log_warn};
 use aho_corasick::AhoCorasick;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
@@ -19,7 +20,6 @@ pub fn check_file_strings(path: &Path, iocs: &IocCollection, config: &Config) ->
     }
     let matcher = iocs.string_ioc_matcher.as_ref().unwrap();
 
-    // Вызываем макросы напрямую
     log_debug!(config, "String scanning file: {}", path.display());
 
     let extension = path.extension()
@@ -72,13 +72,11 @@ fn scan_reader(
                  if let Some(mat) = matcher.find(&line) {
                      let matched_ioc = &ioc_list[mat.pattern().as_usize()];
                      let match_context = truncate_match(&line, MAX_MATCH_DISPLAY_LEN);
-                     // Вызываем макрос напрямую
                      log_warn!(config, "[!] String match found FILE: {} LINE: {} STRING: {} TYPE: {} MATCH: {}",
                          path.display(), line_num + 1, matched_ioc, file_type, match_context);
                  }
             }
             Err(e) => {
-                 // Вызываем макрос напрямую
                  log_warn!(config, "Error reading line {} from {}: {}. Might be non-UTF8 data.", line_num + 1, path.display(), e);
             }
         }
