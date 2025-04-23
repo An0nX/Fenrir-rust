@@ -7,27 +7,28 @@ on:
       - 'v*.*.*' # Trigger on tags like v0.9.0, v1.0.0
 
 jobs:
-  # First, run the build job to ensure the code compiles and tests pass on all targets
-  build-matrix:
-    uses: ./.github/workflows/build.yml # Reuse the build workflow
+  # ЗАМЕЧАНИЕ: Мы НЕ вызываем build.yml напрямую.
+  # Мы полагаемся на то, что build.yml ТОЖЕ сработает на этот тег
+  # и загрузит артефакты, которые мы потом скачаем.
 
   create-release:
     name: Create GitHub Release
-    needs: build-matrix # Wait for the build jobs to complete successfully
+    # Удаляем needs: build-matrix, т.к. нет такой задачи в ЭТОМ воркфлоу
+    # needs: build-matrix
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Permission to create releases and upload assets
+      contents: write # Разрешение на создание релизов и загрузку ассетов
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Download all artifacts
+    - name: Download all build artifacts
       uses: actions/download-artifact@v4
-      # No 'name' specified, downloads all artifacts produced by the workflow run
-      # Artifacts will be downloaded into directories named after the artifact name
+      # Не указываем 'name', скачиваем ВСЕ артефакты из текущего запуска воркфлоу (который сработал на тег)
+      # Артефакты будут скачаны в папки с именами артефактов
       with:
-        path: artifacts/ # Download into an 'artifacts' directory
+        path: artifacts/ # Скачиваем в папку 'artifacts'
 
     - name: List downloaded artifacts
       run: ls -R artifacts/
@@ -40,42 +41,41 @@ jobs:
         CHECKSUM_FILE="checksums.sha256"
         mkdir -p $RELEASE_DIR
         echo "--- Moving assets ---"
-        # Move all binaries and associated files from subdirs to the release dir
-        # This command works correctly regardless of the number of artifact subdirectories
+        # Перемещаем все бинарники и связанные файлы из подпапок в папку релиза
         find artifacts/ -type f -print -exec mv {} $RELEASE_DIR/ \;
 
         echo "--- Generating Checksums ---"
         cd $RELEASE_DIR
-        # Generate checksums for all files in the release directory
-        # Handle potential errors if no files are found (e.g., if build failed unexpectedly)
+        # Генерируем чексуммы для всех файлов в папке релиза
         sha256sum * > $CHECKSUM_FILE 2>/dev/null || echo "No files found to checksum."
 
         echo "--- Checksum File ---"
-        # Check if checksum file exists before trying to cat it
+        # Проверяем, существует ли файл чексумм перед выводом
         if [ -f $CHECKSUM_FILE ]; then
            cat $CHECKSUM_FILE
+           # Используем heredoc для многострочного вывода
            echo "checksum_content<<EOF" >> $GITHUB_OUTPUT
            cat $CHECKSUM_FILE >> $GITHUB_OUTPUT
            echo "EOF" >> $GITHUB_OUTPUT
         else
-           echo "checksum_content=" >> $GITHUB_OUTPUT # Set empty output if no checksums
+           echo "checksum_content=" >> $GITHUB_OUTPUT # Устанавливаем пустой вывод, если нет чексумм
         fi
-        cd .. # Go back to root
+        cd .. # Возвращаемся в корень
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref_name }} # Use the tag that triggered the workflow
-        name: Fenrir Rust ${{ github.ref_name }} # Release title
-        body: | # Optional: Add release notes or checksums
+        tag_name: ${{ github.ref_name }} # Используем тег, который запустил воркфлоу
+        name: Fenrir Rust ${{ github.ref_name }} # Название релиза
+        body: | # Опционально: добавляем описание релиза или чексуммы
           Fenrir Rust release based on tag ${{ github.ref_name }}.
 
           **SHA256 Checksums:**
           ```
           ${{ steps.prepare_assets.outputs.checksum_content }}
           ```
-        draft: false # Set to true to create a draft release first
-        prerelease: false # Set to true if this is a pre-release
-        # This pattern correctly attaches all files moved into release-assets
+        draft: false # Установите true для создания черновика релиза
+        prerelease: false # Установите true, если это пре-релиз
+        # Этот паттерн корректно прикрепляет все файлы, перемещенные в release-assets
         files: |
           release-assets/*
