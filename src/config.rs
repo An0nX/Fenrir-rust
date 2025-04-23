@@ -4,7 +4,10 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use lazy_static::lazy_static;
-use chrono::Local; // Import chrono::Local
+use crate::system_info::get_hostname; // Ensure get_hostname is imported if used directly
+
+// Use environment variables for configuration to mimic the script's approach
+// Prefixed with FENRIR_ for clarity
 
 const DEFAULT_MAX_FILE_SIZE_KB: u64 = 8000;
 const DEFAULT_HASH_IOC_FILE: &str = "./hash-iocs.txt";
@@ -28,7 +31,7 @@ lazy_static! {
         dirs.iter().map(PathBuf::from).collect()
     };
      static ref DEFAULT_EXCLUDE_LOG_STRINGS: HashSet<String> = {
-        let strs = ["iocs.txt", "fenrir-rust"]; // Add fenrir-rust
+        let strs = ["iocs.txt", "fenrir"]; // Add fenrir-rust?
         strs.iter().map(|s| s.to_string()).collect()
     };
 }
@@ -44,11 +47,13 @@ pub struct Config {
     pub log_to_file: bool,
     pub log_to_syslog: bool,
     pub log_to_cmdline: bool,
+    // Allow dead code for syslog_facility only when syslog_logging feature is NOT enabled
+    #[cfg_attr(not(feature = "syslog_logging"), allow(dead_code))]
     pub syslog_facility: String,
     pub enable_c2_check: bool,
     pub enable_hash_check: bool,
-    pub enable_string_check: bool,
-    pub enable_filename_check: bool,
+    pub enable_string_check: bool, // Added for consistency
+    pub enable_filename_check: bool, // Added for consistency
     pub enable_timeframe_check: bool,
     pub max_file_size_kb: u64,
     pub check_only_relevant_extensions: bool,
@@ -59,6 +64,7 @@ pub struct Config {
     pub min_hot_epoch: Option<u64>,
     pub max_hot_epoch: Option<u64>,
     pub debug: bool,
+    // --- Added ---
     pub num_threads: usize, // Control concurrency
 }
 
@@ -120,12 +126,10 @@ impl Config {
             return Ok(None);
         }
 
-        let hostname = hostname::get()
-            .map_err(|e| FenrirError::SystemInfo(format!("Failed to get hostname: {}", e)))?
-            .into_string()
-            .map_err(|os_str| FenrirError::SystemInfo(format!("Hostname is not valid UTF-8: {:?}", os_str)))?;
+        // Use the imported function for clarity
+        let hostname = get_hostname()?;
 
-        let date_str = Local::now().format("%Y%m%d").to_string(); // Use imported chrono::Local
+        let date_str = chrono::Local::now().format("%Y%m%d").to_string();
 
         let pattern = self.log_file.as_ref().unwrap(); // Safe due to check above
         let path_str = pattern
@@ -159,12 +163,9 @@ fn parse_env_hashset_string(env_var: &str, default: &HashSet<String>) -> Result<
     match std::env::var(env_var) {
         Ok(val_str) => {
             if val_str.is_empty() {
-                Ok(default.clone())
+                Ok(default.clone()) // Or return empty set? Stick to default.
             } else {
-                Ok(val_str.split(',')
-                   .map(|s| s.trim().to_lowercase())
-                   .filter(|s| !s.is_empty()) // Avoid empty strings from trailing commas
-                   .collect())
+                Ok(val_str.split(',').map(|s| s.trim().to_lowercase()).collect())
             }
         },
         Err(std::env::VarError::NotPresent) => Ok(default.clone()),
@@ -178,10 +179,7 @@ fn parse_env_hashset_pathbuf(env_var: &str, default: &HashSet<PathBuf>) -> Resul
              if val_str.is_empty() {
                 Ok(default.clone())
             } else {
-                Ok(val_str.split(',')
-                   .map(|s| PathBuf::from(s.trim()))
-                   .filter(|p| !p.as_os_str().is_empty()) // Avoid empty paths
-                   .collect())
+                Ok(val_str.split(',').map(|s| PathBuf::from(s.trim())).collect())
             }
         },
         Err(std::env::VarError::NotPresent) => Ok(default.clone()),
@@ -194,4 +192,14 @@ pub fn get_epoch_seconds(time: SystemTime) -> Result<u64> {
     time.duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .map_err(|e| FenrirError::SystemInfo(format!("System time error: {}", e)))
+}
+
+// Separate module/file for system_info functions like get_hostname
+mod system_info {
+    use crate::errors::{FenrirError, Result};
+    pub fn get_hostname() -> Result<String> {
+         hostname::get()?
+            .into_string()
+            .map_err(|os_str| FenrirError::SystemInfo(format!("Hostname is not valid UTF-8: {:?}", os_str)))
+    }
 }
