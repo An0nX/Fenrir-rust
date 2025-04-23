@@ -19,6 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # ---- Linux x86_64 ----
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact_name: fenrir-rust-x86_64-linux-gnu
@@ -27,30 +28,33 @@ jobs:
             target: x86_64-unknown-linux-musl
             artifact_name: fenrir-rust-x86_64-linux-musl
             use_cross: true
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            artifact_name: fenrir-rust-aarch64-linux-gnu
-            use_cross: true
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-musl
-            artifact_name: fenrir-rust-aarch64-linux-musl
-            use_cross: true
+          # ---- macOS (Intel & Apple Silicon) ----
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: fenrir-rust-x86_64-macos
             use_cross: false
           - os: macos-latest
-            target: aarch64-apple-darwin
+            target: aarch64-apple-darwin # Keep macOS ARM64
             artifact_name: fenrir-rust-aarch64-macos
             use_cross: false
+          # ---- Windows x86_64 ----
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: fenrir-rust-x86_64-windows.exe
             use_cross: false
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            artifact_name: fenrir-rust-aarch64-windows.exe
-            use_cross: false
+          # ---- Удаленные сборки aarch64 ----
+          # - os: ubuntu-latest
+          #   target: aarch64-unknown-linux-gnu
+          #   artifact_name: fenrir-rust-aarch64-linux-gnu
+          #   use_cross: true
+          # - os: ubuntu-latest
+          #   target: aarch64-unknown-linux-musl
+          #   artifact_name: fenrir-rust-aarch64-linux-musl
+          #   use_cross: true
+          # - os: windows-latest
+          #   target: aarch64-pc-windows-msvc
+          #   artifact_name: fenrir-rust-aarch64-windows.exe
+          #   use_cross: false
 
     steps:
     - name: Checkout repository
@@ -61,18 +65,12 @@ jobs:
       with:
         targets: ${{ matrix.target }}
 
+    # Установка зависимостей кросс-компиляции теперь нужна только для musl x86_64
     - name: Install cross-compilation prerequisites (Linux)
-      if: runner.os == 'Linux' && matrix.use_cross == true
+      if: runner.os == 'Linux' && matrix.use_cross == true && contains(matrix.target, 'musl')
       run: |
         sudo apt-get update -y
-        if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-        elif [[ "${{ matrix.target }}" == *"musl"* ]]; then
-          sudo apt-get install -y musl-tools
-          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
-             sudo apt-get install -y g++-aarch64-linux-gnu # Example for cross-linker
-          fi
-        fi
+        sudo apt-get install -y musl-tools
 
     - name: Cache Cargo dependencies
       uses: actions/cache@v4
@@ -94,7 +92,6 @@ jobs:
         echo "Setting RUSTFLAGS=${RUSTFLAGS_MUSL}"
         echo "RUSTFLAGS=${RUSTFLAGS_MUSL}" >> $GITHUB_ENV
 
-    # ******** ADDED STEP: Update dependencies ********
     - name: Update dependencies
       run: cargo update --verbose
 
@@ -115,7 +112,6 @@ jobs:
         BINARY_NAME=${{ matrix.artifact_name }}
         SOURCE_DIR=target/${{ matrix.target }}/release
         EXE_NAME=fenrir-rust
-
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
           cp $SOURCE_DIR/$EXE_NAME.exe $ARTIFACT_DIR/$BINARY_NAME
         else
