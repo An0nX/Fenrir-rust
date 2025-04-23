@@ -5,7 +5,7 @@ use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf}; // Keep PathBuf here
+use std::path::Path; // Убираем PathBuf
 
 #[derive(Debug, Clone)]
 pub struct IocCollection {
@@ -19,13 +19,10 @@ pub struct IocCollection {
 impl IocCollection {
     pub fn load(config: &Config) -> Result<Self> {
         let hashes = load_hash_iocs(&config.hash_ioc_file)?;
-        let (string_ioc_list, c2_iocs) = load_string_and_c2_iocs(
-            &config.string_ioc_file,
-            &config.c2_ioc_file,
-        )?;
+        let (string_ioc_list, c2_iocs) =
+            load_string_and_c2_iocs(&config.string_ioc_file, &config.c2_ioc_file)?;
         let filename_iocs = load_filename_iocs(&config.filename_ioc_file)?;
 
-        // Отформатировано
         let all_strings_for_matcher: Vec<&str> = string_ioc_list
             .iter()
             .map(AsRef::as_ref)
@@ -38,7 +35,6 @@ impl IocCollection {
                     .match_kind(MatchKind::LeftmostFirst)
                     .ascii_case_insensitive(false)
                     .build(&all_strings_for_matcher)
-                    // Отформатировано
                     .map_err(|e| {
                         FenrirError::StringMatching(format!("AhoCorasick build error: {}", e))
                     })?,
@@ -58,13 +54,12 @@ impl IocCollection {
 }
 
 fn read_lines(path: &Path) -> Result<impl Iterator<Item = Result<String>>> {
-    // Отформатировано
     let file = File::open(path).map_err(|e| FenrirError::IocRead {
+        // path.to_path_buf() возвращает PathBuf, но тип здесь не пишется
         path: path.to_path_buf(),
         source: e,
     })?;
     let reader = BufReader::new(file);
-    // Отформатировано
     Ok(reader
         .lines()
         .map(|line_res| line_res.map_err(FenrirError::Io)))
@@ -82,7 +77,6 @@ fn load_hash_iocs(path: &Path) -> Result<HashMap<String, String>> {
         match trimmed_line.split_once(';') {
             Some((hash, description)) => {
                 let hash_trimmed = hash.trim().to_lowercase();
-                // Отформатировано
                 if (hash_trimmed.len() == 32
                     || hash_trimmed.len() == 40
                     || hash_trimmed.len() == 64)
@@ -90,8 +84,8 @@ fn load_hash_iocs(path: &Path) -> Result<HashMap<String, String>> {
                 {
                     iocs.insert(hash_trimmed, description.trim().to_string());
                 } else {
-                    // Отформатировано
                     return Err(FenrirError::IocFormat {
+                        // path.to_path_buf() возвращает PathBuf
                         path: path.to_path_buf(),
                         details: format!(
                             "L{}: Invalid hash format '{}'",
@@ -102,8 +96,8 @@ fn load_hash_iocs(path: &Path) -> Result<HashMap<String, String>> {
                 }
             }
             None => {
-                // Отформатировано
                 return Err(FenrirError::IocFormat {
+                    // path.to_path_buf() возвращает PathBuf
                     path: path.to_path_buf(),
                     details: format!(
                         "L{}: Missing ';' separator in line '{}'",
