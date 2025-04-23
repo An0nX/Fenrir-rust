@@ -1,8 +1,9 @@
 // fenrir-rust/src/system_info.rs
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
-use crate::logger::log_info; // Use macro
-use lazy_static::lazy_static; // Import lazy_static
+// Import macro from crate root
+use crate::log_info;
+use lazy_static::lazy_static;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -15,33 +16,33 @@ pub fn get_hostname() -> Result<String> {
 }
 
 pub fn log_system_info(config: &Config) -> Result<()> {
-    log_info!(config, "Gathering system information...");
+    log_info!(config, "Gathering system information..."); // Use macro directly
 
     let hostname = get_hostname()?;
-    log_info!(config, "HOSTNAME: {}", hostname);
+    log_info!(config, "HOSTNAME: {}", hostname); // Use macro directly
 
     let ip_addresses = get_ip_addresses().unwrap_or_else(|e| {
-        log_info!(config, "Could not get IP addresses: {}", e);
+        log_info!(config, "Could not get IP addresses: {}", e); // Use macro directly
         "N/A".to_string()
     });
-    log_info!(config, "IP: {}", ip_addresses);
+    log_info!(config, "IP: {}", ip_addresses); // Use macro directly
 
     let os_release = get_os_release().unwrap_or_else(|e| {
-         log_info!(config, "Could not get OS release info: {}", e);
+         log_info!(config, "Could not get OS release info: {}", e); // Use macro directly
         "N/A".to_string()
     });
-    log_info!(config, "OS: {}", os_release);
+    log_info!(config, "OS: {}", os_release); // Use macro directly
 
     let os_issue = fs::read_to_string("/etc/issue")
         .map(|s| s.trim().replace('\n', "; "))
         .unwrap_or_else(|_| "N/A".to_string());
-    log_info!(config, "ISSUE: {}", os_issue);
+    log_info!(config, "ISSUE: {}", os_issue); // Use macro directly
 
     let os_kernel = run_command("uname", &["-a"]).unwrap_or_else(|e| {
-        log_info!(config, "Could not get kernel info: {}", e);
+        log_info!(config, "Could not get kernel info: {}", e); // Use macro directly
         "N/A".to_string()
     });
-    log_info!(config, "KERNEL: {}", os_kernel);
+    log_info!(config, "KERNEL: {}", os_kernel); // Use macro directly
 
     Ok(())
 }
@@ -108,7 +109,6 @@ fn get_os_release() -> Result<String> {
     let mut releases = Vec::new();
     match fs::read_dir("/etc") {
         Ok(entries) => {
-            // Use flatten() to simplify iteration over Result<DirEntry>
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_file() {

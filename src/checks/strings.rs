@@ -2,12 +2,13 @@
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
-use crate::logger::{log_debug, log_warn}; // Use macros
-use aho_corasick::AhoCorasick; // Removed MatchError
+// Import macros from crate root
+use crate::{log_debug, log_warn};
+use aho_corasick::AhoCorasick;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use std::fs::File;
-use std::io::{BufRead, BufReader}; // Removed Read
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 const STRING_READ_BUFFER_SIZE: usize = 8192;
@@ -19,33 +20,32 @@ pub fn check_file_strings(path: &Path, iocs: &IocCollection, config: &Config) ->
     }
     let matcher = iocs.string_ioc_matcher.as_ref().unwrap();
 
-    log_debug!(config, "String scanning file: {}", path.display());
+    log_debug!(config, "String scanning file: {}", path.display()); // Use macro directly
 
     let extension = path.extension()
         .and_then(|os| os.to_str())
         .map(|s| s.to_lowercase());
 
     let file = File::open(path).map_err(|e| FenrirError::FileAccess { path: path.to_path_buf(), source: e })?;
-    let file_type_str: &str; // Declare file_type_str here
+    let file_type_str: &str;
     let mut buf_reader: Box<dyn BufRead> = match extension.as_deref() {
         Some("gz") | Some("z") | Some("zip") if is_in_forced_dir(path, config) => {
-            log_debug!(config,"Scanning as GZIP");
+            log_debug!(config,"Scanning as GZIP"); // Use macro directly
             file_type_str = "gzip";
             Box::new(BufReader::with_capacity(STRING_READ_BUFFER_SIZE, GzDecoder::new(file)))
         }
         Some("bz") | Some("bz2") if is_in_forced_dir(path, config) => {
-             log_debug!(config,"Scanning as BZIP2");
+             log_debug!(config,"Scanning as BZIP2"); // Use macro directly
              file_type_str = "bzip2";
              Box::new(BufReader::with_capacity(STRING_READ_BUFFER_SIZE, BzDecoder::new(file)))
         }
         _ => {
-            log_debug!(config,"Scanning as plain text");
+            log_debug!(config,"Scanning as plain text"); // Use macro directly
             file_type_str = "plain";
             Box::new(BufReader::with_capacity(STRING_READ_BUFFER_SIZE, file))
         }
     };
 
-    // Scan the reader
     scan_reader(&mut buf_reader, path, matcher, &iocs.string_ioc_list, file_type_str, config)?;
 
     Ok(())
@@ -66,9 +66,6 @@ fn scan_reader(
     config: &Config,
 ) -> Result<()> {
 
-    // Removed unused variable `matches_found`
-    // let mut matches_found = false;
-
     for (line_num, result) in reader.lines().enumerate() {
         match result {
             Ok(line) => {
@@ -76,15 +73,11 @@ fn scan_reader(
                      let matched_ioc = &ioc_list[mat.pattern().as_usize()];
                      let match_context = truncate_match(&line, MAX_MATCH_DISPLAY_LEN);
                      log_warn!(config, "[!] String match found FILE: {} LINE: {} STRING: {} TYPE: {} MATCH: {}",
-                         path.display(), line_num + 1, matched_ioc, file_type, match_context);
-                     // Removed assignment to unused variable
-                     // matches_found = true;
-                     // Optimization: Break after first match per file?
-                     // break;
+                         path.display(), line_num + 1, matched_ioc, file_type, match_context); // Use macro directly
                  }
             }
             Err(e) => {
-                 log_warn!(config, "Error reading line {} from {}: {}. Might be non-UTF8 data.", line_num + 1, path.display(), e);
+                 log_warn!(config, "Error reading line {} from {}: {}. Might be non-UTF8 data.", line_num + 1, path.display(), e); // Use macro directly
             }
         }
     }
