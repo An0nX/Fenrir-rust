@@ -1,9 +1,11 @@
-# fenrir-rust/.github/workflows/build.yml
-name: Build Fenrir Rust
+k# fenrir-rust/.github/workflows/build.yml
+name: Build and Release Fenrir Rust
 
 on:
   push:
     branches: [ "main", "master" ]
+    tags:       # Добавляем реакцию на теги
+      - 'v*.*.*'
   pull_request:
     branches: [ "main", "master" ]
 
@@ -12,6 +14,7 @@ env:
   RUSTFLAGS_MUSL: "-C target-feature=+crt-static"
 
 jobs:
+  # --- Задача сборки (выполняется всегда) ---
   build:
     name: Build ${{ matrix.target }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -19,7 +22,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ---- Linux x86_64 ----
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact_name: fenrir-rust-x86_64-linux-gnu
@@ -28,33 +30,18 @@ jobs:
             target: x86_64-unknown-linux-musl
             artifact_name: fenrir-rust-x86_64-linux-musl
             use_cross: true
-          # ---- macOS (Intel & Apple Silicon) ----
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: fenrir-rust-x86_64-macos
             use_cross: false
           - os: macos-latest
-            target: aarch64-apple-darwin # Keep macOS ARM64
+            target: aarch64-apple-darwin
             artifact_name: fenrir-rust-aarch64-macos
             use_cross: false
-          # ---- Windows x86_64 ----
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: fenrir-rust-x86_64-windows.exe
             use_cross: false
-          # ---- Удаленные сборки aarch64 ----
-          # - os: ubuntu-latest
-          #   target: aarch64-unknown-linux-gnu
-          #   artifact_name: fenrir-rust-aarch64-linux-gnu
-          #   use_cross: true
-          # - os: ubuntu-latest
-          #   target: aarch64-unknown-linux-musl
-          #   artifact_name: fenrir-rust-aarch64-linux-musl
-          #   use_cross: true
-          # - os: windows-latest
-          #   target: aarch64-pc-windows-msvc
-          #   artifact_name: fenrir-rust-aarch64-windows.exe
-          #   use_cross: false
 
     steps:
     - name: Checkout repository
@@ -65,8 +52,7 @@ jobs:
       with:
         targets: ${{ matrix.target }}
 
-    # Установка зависимостей кросс-компиляции теперь нужна только для musl x86_64
-    - name: Install cross-compilation prerequisites (Linux)
+    - name: Install cross-compilation prerequisites (Linux MUSL)
       if: runner.os == 'Linux' && matrix.use_cross == true && contains(matrix.target, 'musl')
       run: |
         sudo apt-get update -y
@@ -117,17 +103,84 @@ jobs:
         else
           cp $SOURCE_DIR/$EXE_NAME $ARTIFACT_DIR/$BINARY_NAME
         fi
-        cp README.md $ARTIFACT_DIR/
+        # Копируем вспомогательные файлы ТОЛЬКО если они существуют
+        cp README.md $ARTIFACT_DIR/ 2>/dev/null || true
         if [ -f LICENSE ]; then cp LICENSE $ARTIFACT_DIR/; fi
-        cp hash-iocs.txt $ARTIFACT_DIR/ 2>/dev/null || echo "hash-iocs.txt not found, skipping."
-        cp string-iocs.txt $ARTIFACT_DIR/ 2>/dev/null || echo "string-iocs.txt not found, skipping."
-        cp filename-iocs.txt $ARTIFACT_DIR/ 2>/dev/null || echo "filename-iocs.txt not found, skipping."
-        cp c2-iocs.txt $ARTIFACT_DIR/ 2>/dev/null || echo "c2-iocs.txt not found, skipping."
-        echo "--- Artifact Contents ---"
+        cp hash-iocs.txt $ARTIFACT_DIR/ 2>/dev/null || true
+        cp string-iocs.txt $ARTIFACT_DIR/ 2>/dev/null || true
+        cp filename-iocs.txt $ARTIFACT_DIR/ 2>/dev/null || true
+        cp c2-iocs.txt $ARTIFACT_DIR/ 2>/dev/null || true
+        echo "--- Artifact Contents for ${{ matrix.artifact_name }} ---"
         ls -l $ARTIFACT_DIR
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact_name }}
+        name: ${{ matrix.artifact_name }} # Имя артефакта уникально для каждой сборки
         path: artifact/
+
+  # --- Задача создания релиза (выполняется только для тегов) ---
+  create_release:
+    name: Create GitHub Release
+    # Запускаем только если событие - пуш тега
+    if: startsWith(github.ref, 'refs/tags/')
+    # Зависит от успешного завершения ВСЕХ сборок в матрице 'build'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Разрешение на создание релиза и загрузку ассетов
+
+    steps:
+    # Чекаут здесь не нужен, так как мы используем артефакты из задачи 'build'
+
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      # Скачиваем ВСЕ артефакты из ТЕКУЩЕГО запуска воркфлоу
+      with:
+        path: artifacts/ # Все артефакты будут в подпапках artifacts/<artifact_name>/
+
+    - name: List downloaded artifacts
+      run: ls -R artifacts/
+
+    - name: Prepare release assets and checksums
+      id: prepare_assets
+      shell: bash
+      run: |
+        RELEASE_DIR="release-assets"
+        CHECKSUM_FILE="checksums.sha256"
+        mkdir -p $RELEASE_DIR
+        echo "--- Moving assets ---"
+        # Перемещаем все файлы из подпапок артефактов в папку релиза
+        find artifacts/ -mindepth 2 -type f -print -exec mv {} $RELEASE_DIR/ \;
+
+        echo "--- Generating Checksums ---"
+        cd $RELEASE_DIR
+        sha256sum * > $CHECKSUM_FILE 2>/dev/null || echo "No files found to checksum."
+
+        echo "--- Checksum File ---"
+        if [ -f $CHECKSUM_FILE ]; then
+           cat $CHECKSUM_FILE
+           echo "checksum_content<<EOF" >> $GITHUB_OUTPUT
+           cat $CHECKSUM_FILE >> $GITHUB_OUTPUT
+           echo "EOF" >> $GITHUB_OUTPUT
+        else
+           echo "checksum_content=No artifacts built or checksummed." >> $GITHUB_OUTPUT
+        fi
+        cd ..
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }} # Используем имя тега из события
+        name: Fenrir Rust ${{ github.ref_name }} # Название релиза
+        body: |
+          Fenrir Rust release based on tag ${{ github.ref_name }}.
+
+          **SHA256 Checksums:**
+          ```
+          ${{ steps.prepare_assets.outputs.checksum_content }}
+          ```
+        draft: false
+        prerelease: false
+        files: |
+          release-assets/*
