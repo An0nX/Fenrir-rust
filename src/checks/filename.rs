@@ -11,13 +11,25 @@ pub fn check_filename(path: &Path, iocs: &IocCollection, config: &Config) {
     }
 
     if let Some(path_str) = path.to_str() {
-         for ioc_filename in &iocs.filename_iocs {
+        // Отформатировано
+        for ioc_filename in &iocs.filename_iocs {
             if path_str.contains(ioc_filename) {
-                log_warn!(config, "[!] Filename match found FILE: {} INDICATOR: {}", path.display(), ioc_filename);
+                // Отформатировано
+                log_warn!(
+                    config,
+                    "[!] Filename match found FILE: {} INDICATOR: {}",
+                    path.display(),
+                    ioc_filename
+                );
             }
         }
     } else {
-         // Теперь можно вызывать напрямую, т.к. макрос импортирован
-         log_warn!(config, "Skipping filename check for non-UTF8 path: {:?}", path);
+        // Отформатировано
+        // Теперь можно вызывать напрямую, т.к. макрос импортирован
+        log_warn!(
+            config,
+            "Skipping filename check for non-UTF8 path: {:?}",
+            path
+        );
     }
 }
