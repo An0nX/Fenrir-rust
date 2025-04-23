@@ -5,11 +5,10 @@ use std::path::Path;
 use std::sync::Mutex;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
-// Corrected: Import LocalTime specifically if needed, or rely on feature flags
-use tracing_subscriber::fmt::time::LocalTime;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
 use tracing_appender::non_blocking::WorkerGuard;
 
+// Keep guard until end of program
 static LOG_GUARD: Mutex<Option<WorkerGuard>> = Mutex::new(None);
 
 pub fn setup_logging(config: &Config) -> Result<()> {
@@ -32,11 +31,6 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     // File Logger
     if config.log_to_file {
          if let Some(log_path) = config.get_current_log_file_path()? {
-            if let Some(parent_dir) = log_path.parent() {
-                std::fs::create_dir_all(parent_dir)
-                   .map_err(|e| FenrirError::Io(e))?;
-            }
-
             let file_appender = tracing_appender::rolling::daily(
                 log_path.parent().unwrap_or_else(|| Path::new(".")),
                 log_path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("fenrir.log")),
@@ -52,20 +46,19 @@ pub fn setup_logging(config: &Config) -> Result<()> {
                 .with_target(false)
                 .with_level(true)
                 .with_span_events(FmtSpan::NONE)
-                // Corrected: Use the imported LocalTime directly
-                .with_timer(LocalTime::rfc_3339())
                 .with_filter(file_level);
             layers.push(file_layer.boxed());
         } else {
-             eprintln!("[W] File logging enabled but could not determine log file path.");
+             // Use eprintln directly as logger isn't set up yet
+             eprintln!("Warning: File logging enabled but could not determine log file path.");
+             // Or if logging is already partially set up (e.g., console):
+             // tracing::warn!("File logging enabled but could not determine log file path.");
         }
     }
 
     // Syslog Logger (Optional Feature)
     #[cfg(feature = "syslog_logging")]
     {
-        use tracing_syslog::Syslog; // Import Syslog trait when feature is enabled
-
         if config.log_to_syslog {
             let syslog_level = if config.debug { LevelFilter::DEBUG } else { LevelFilter::INFO };
              let level_mapper = |level: &tracing::Level| -> syslog::Severity {
@@ -90,7 +83,8 @@ pub fn setup_logging(config: &Config) -> Result<()> {
                   "local4" => syslog::Facility::LOG_LOCAL4, "local5" => syslog::Facility::LOG_LOCAL5,
                   "local6" => syslog::Facility::LOG_LOCAL6, "local7" => syslog::Facility::LOG_LOCAL7,
                   _ => {
-                      eprintln!("[W] Invalid syslog facility '{}', using LOG_USER.", config.syslog_facility);
+                      eprintln!("Warning: Invalid syslog facility '{}', using LOG_USER.", config.syslog_facility);
+                      // tracing::warn!(...); // Use if console logger might be active
                       syslog::Facility::LOG_USER
                   }
               };
@@ -100,18 +94,15 @@ pub fn setup_logging(config: &Config) -> Result<()> {
               };
 
             match syslog::unix(formatter) {
-                 Ok(writer) => {
-                     match Syslog::new(writer, syslog_level, level_mapper) { // Corrected: Use Syslog::new
-                         Ok(syslog_layer) => {
-                             layers.push(syslog_layer.boxed());
-                         }
-                         Err(e) => {
-                             eprintln!("[E] Syslog layer init failed: {}", e);
-                         }
-                     }
+                Ok(writer) => {
+                    let syslog_layer = tracing_syslog::SyslogLayer::new( writer, syslog_level, level_mapper)
+                         // Simplify map_err here
+                         .map_err(|e| FenrirError::LoggingSetup(format!("Syslog layer init failed: {}", e)))?;
+                     layers.push(syslog_layer.boxed());
                  },
                  Err(e) => {
-                     eprintln!("[E] Failed to connect to syslog: {}", e);
+                     eprintln!("Error: Failed to connect to syslog: {}", e);
+                     // tracing::error!(...); // Use if console logger might be active
                  }
             }
         }
@@ -119,9 +110,11 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     #[cfg(not(feature = "syslog_logging"))]
     {
         if config.log_to_syslog {
-             eprintln!("[W] Syslog logging requested, but the 'syslog_logging' feature is not enabled.");
+             eprintln!("Warning: Syslog logging requested, but the 'syslog_logging' feature is not enabled.");
+             // tracing::warn!(...);
         }
     }
+
 
     tracing_subscriber::registry()
         .with(layers)
@@ -140,53 +133,58 @@ pub fn should_log(message: &str, config: &Config) -> bool {
     true
 }
 
-// --- Macros --- (No #[macro_export])
+#[macro_export]
 macro_rules! log_info {
-    ($config:expr, $($arg:tt)*) => {{
+    ($config:expr, $($arg:tt)*) => {
         let msg = format!($($arg)*);
         if $crate::logger::should_log(&msg, $config) {
             tracing::info!("{}", msg);
         }
-    }};
+    };
 }
 
+#[macro_export]
 macro_rules! log_warn {
-     ($config:expr, $($arg:tt)*) => {{
+     ($config:expr, $($arg:tt)*) => {
         let msg = format!($($arg)*);
         if $crate::logger::should_log(&msg, $config) {
             tracing::warn!("{}", msg);
         }
-    }};
+    };
 }
 
+#[macro_export]
 macro_rules! log_error {
-     ($config:expr, $($arg:tt)*) => {{
+     ($config:expr, $($arg:tt)*) => {
         let msg = format!($($arg)*);
          tracing::error!("{}", msg);
-    }};
+    };
 }
 
+#[macro_export]
+macro_rules! log_notice { // Assuming notice maps to INFO level
+    ($config:expr, $($arg:tt)*) => {
+        let msg = format!($($arg)*);
+        if $crate::logger::should_log(&msg, $config) {
+            // Map notice level to info, warn, or a custom level if using more advanced logging
+            tracing::info!("NOTICE: {}", msg); // Prefixing manually for clarity
+        }
+    };
+}
+
+
+#[macro_export]
 macro_rules! log_debug {
-    ($config:expr, $($arg:tt)*) => {{
+    ($config:expr, $($arg:tt)*) => {
         let msg = format!($($arg)*);
         if $config.debug && $crate::logger::should_log(&msg, $config) {
             tracing::debug!("{}", msg);
         }
-    }};
+    };
 }
 
-macro_rules! log_notice {
-    ($config:expr, $($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        if $crate::logger::should_log(&msg, $config) {
-             tracing::info!("[N] {}", msg);
-        }
-    }};
-}
-
-// Re-export for convenience within the crate
 pub(crate) use log_debug;
 pub(crate) use log_error;
 pub(crate) use log_info;
 pub(crate) use log_warn;
-pub(crate) use log_notice;
+pub(crate) use log_notice; // Export the notice macro
