@@ -1,8 +1,7 @@
 // fenrir-rust/src/system_info.rs
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
-// Import macro from crate root
-use crate::log_info;
+// Удален импорт: use crate::log_info;
 use lazy_static::lazy_static;
 use std::fs;
 use std::io;
@@ -16,33 +15,34 @@ pub fn get_hostname() -> Result<String> {
 }
 
 pub fn log_system_info(config: &Config) -> Result<()> {
-    log_info!(config, "Gathering system information..."); // Use macro directly
+    // Вызываем макрос напрямую
+    log_info!(config, "Gathering system information...");
 
     let hostname = get_hostname()?;
-    log_info!(config, "HOSTNAME: {}", hostname); // Use macro directly
+    log_info!(config, "HOSTNAME: {}", hostname);
 
     let ip_addresses = get_ip_addresses().unwrap_or_else(|e| {
-        log_info!(config, "Could not get IP addresses: {}", e); // Use macro directly
+        log_info!(config, "Could not get IP addresses: {}", e);
         "N/A".to_string()
     });
-    log_info!(config, "IP: {}", ip_addresses); // Use macro directly
+    log_info!(config, "IP: {}", ip_addresses);
 
     let os_release = get_os_release().unwrap_or_else(|e| {
-         log_info!(config, "Could not get OS release info: {}", e); // Use macro directly
+         log_info!(config, "Could not get OS release info: {}", e);
         "N/A".to_string()
     });
-    log_info!(config, "OS: {}", os_release); // Use macro directly
+    log_info!(config, "OS: {}", os_release);
 
     let os_issue = fs::read_to_string("/etc/issue")
         .map(|s| s.trim().replace('\n', "; "))
         .unwrap_or_else(|_| "N/A".to_string());
-    log_info!(config, "ISSUE: {}", os_issue); // Use macro directly
+    log_info!(config, "ISSUE: {}", os_issue);
 
     let os_kernel = run_command("uname", &["-a"]).unwrap_or_else(|e| {
-        log_info!(config, "Could not get kernel info: {}", e); // Use macro directly
+        log_info!(config, "Could not get kernel info: {}", e);
         "N/A".to_string()
     });
-    log_info!(config, "KERNEL: {}", os_kernel); // Use macro directly
+    log_info!(config, "KERNEL: {}", os_kernel);
 
     Ok(())
 }

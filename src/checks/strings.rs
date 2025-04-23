@@ -2,8 +2,7 @@
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
-// Import macros from crate root
-use crate::{log_debug, log_warn};
+// Удалены импорты: use crate::{log_debug, log_warn};
 use aho_corasick::AhoCorasick;
 use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
@@ -20,7 +19,8 @@ pub fn check_file_strings(path: &Path, iocs: &IocCollection, config: &Config) ->
     }
     let matcher = iocs.string_ioc_matcher.as_ref().unwrap();
 
-    log_debug!(config, "String scanning file: {}", path.display()); // Use macro directly
+    // Вызываем макросы напрямую
+    log_debug!(config, "String scanning file: {}", path.display());
 
     let extension = path.extension()
         .and_then(|os| os.to_str())
@@ -30,17 +30,17 @@ pub fn check_file_strings(path: &Path, iocs: &IocCollection, config: &Config) ->
     let file_type_str: &str;
     let mut buf_reader: Box<dyn BufRead> = match extension.as_deref() {
         Some("gz") | Some("z") | Some("zip") if is_in_forced_dir(path, config) => {
-            log_debug!(config,"Scanning as GZIP"); // Use macro directly
+            log_debug!(config,"Scanning as GZIP");
             file_type_str = "gzip";
             Box::new(BufReader::with_capacity(STRING_READ_BUFFER_SIZE, GzDecoder::new(file)))
         }
         Some("bz") | Some("bz2") if is_in_forced_dir(path, config) => {
-             log_debug!(config,"Scanning as BZIP2"); // Use macro directly
+             log_debug!(config,"Scanning as BZIP2");
              file_type_str = "bzip2";
              Box::new(BufReader::with_capacity(STRING_READ_BUFFER_SIZE, BzDecoder::new(file)))
         }
         _ => {
-            log_debug!(config,"Scanning as plain text"); // Use macro directly
+            log_debug!(config,"Scanning as plain text");
             file_type_str = "plain";
             Box::new(BufReader::with_capacity(STRING_READ_BUFFER_SIZE, file))
         }
@@ -72,12 +72,14 @@ fn scan_reader(
                  if let Some(mat) = matcher.find(&line) {
                      let matched_ioc = &ioc_list[mat.pattern().as_usize()];
                      let match_context = truncate_match(&line, MAX_MATCH_DISPLAY_LEN);
+                     // Вызываем макрос напрямую
                      log_warn!(config, "[!] String match found FILE: {} LINE: {} STRING: {} TYPE: {} MATCH: {}",
-                         path.display(), line_num + 1, matched_ioc, file_type, match_context); // Use macro directly
+                         path.display(), line_num + 1, matched_ioc, file_type, match_context);
                  }
             }
             Err(e) => {
-                 log_warn!(config, "Error reading line {} from {}: {}. Might be non-UTF8 data.", line_num + 1, path.display(), e); // Use macro directly
+                 // Вызываем макрос напрямую
+                 log_warn!(config, "Error reading line {} from {}: {}. Might be non-UTF8 data.", line_num + 1, path.display(), e);
             }
         }
     }

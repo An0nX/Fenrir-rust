@@ -1,8 +1,7 @@
 // fenrir-rust/src/checks/timeframe.rs
 use crate::config::{get_epoch_seconds, Config};
 use crate::errors::{Result, FenrirError};
-// Import macro from crate root
-use crate::log_warn;
+// Удален импорт: use crate::log_warn;
 use std::fs;
 use std::path::Path;
 use std::time::SystemTime;
@@ -13,7 +12,7 @@ pub fn check_timeframe(path: &Path, config: &Config) -> Result<()> {
     }
 
     if config.min_hot_epoch.is_none() || config.max_hot_epoch.is_none() {
-         // Use tracing directly if logger might not be fully set up, or macro if safe
+         // Используем tracing напрямую, т.к. логгер может быть не полностью настроен
          tracing::warn!("Timeframe check enabled, but min/max epoch not set. Skipping timeframe check for {}", path.display());
         return Ok(());
     }
@@ -46,7 +45,8 @@ pub fn check_timeframe(path: &Path, config: &Config) -> Result<()> {
     }
 
     if matched {
-        log_warn!(config, "[!] File changed/created in hot time frame FILE: {} EPOCH: {}", path.display(), epoch_value); // Use macro directly
+        // Вызываем макрос напрямую
+        log_warn!(config, "[!] File changed/created in hot time frame FILE: {} EPOCH: {}", path.display(), epoch_value);
     }
 
     Ok(())

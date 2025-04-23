@@ -3,8 +3,7 @@ use crate::checks::{filename, hash, strings, timeframe};
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
-// Import macros from crate root
-use crate::{log_debug, log_info};
+// Удалены импорты: use crate::{log_debug, log_info};
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -51,7 +50,7 @@ pub fn scan_filesystem(config: &Config, iocs: &IocCollection) -> Result<()> {
 
     files_to_scan.par_iter().for_each(|file_path| {
          if let Err(e) = process_file(file_path, config, iocs, &excluded_dirs_paths, &forced_string_dirs_paths) {
-             log_debug!(config, "Error processing file {}: {}", file_path.display(), e); // Use macro directly
+             log_debug!(config, "Error processing file {}: {}", file_path.display(), e);
         }
     });
 
@@ -67,10 +66,10 @@ fn process_file(
     forced_string_dirs: &[&Path],
 ) -> Result<()> {
 
-    log_debug!(config, "Scanning {}", file_path.display()); // Use macro directly
+    log_debug!(config, "Scanning {}", file_path.display());
 
     if excluded_dirs.iter().any(|ex_dir| file_path.starts_with(ex_dir)) {
-        log_debug!(config, "Skipping {} due to exclusion.", file_path.display()); // Use macro directly
+        log_debug!(config, "Skipping {} due to exclusion.", file_path.display());
         return Ok(());
     }
 
@@ -95,7 +94,7 @@ fn process_file(
         match extension_lower.as_deref() {
             Some(ext) if config.relevant_extensions.contains(ext) => {}
             _ => {
-                log_debug!(config, "Deactivating string/hash checks on {} due to irrelevant extension.", file_path.display()); // Use macro directly
+                log_debug!(config, "Deactivating string/hash checks on {} due to irrelevant extension.", file_path.display());
                 do_string_check = false;
                 do_hash_check = false;
             }
@@ -103,13 +102,13 @@ fn process_file(
     }
 
     if file_size_kb > config.max_file_size_kb {
-        log_debug!(config, "Deactivating string/hash checks on {} due to size ({} KB > {} KB)", file_path.display(), file_size_kb, config.max_file_size_kb); // Use macro directly
+        log_debug!(config, "Deactivating string/hash checks on {} due to size ({} KB > {} KB)", file_path.display(), file_size_kb, config.max_file_size_kb);
         do_string_check = false;
         do_hash_check = false;
     }
 
     if !do_string_check && config.enable_string_check && forced_string_dirs.iter().any(|forced_path| file_path.starts_with(forced_path) || file_path == *forced_path ) {
-        log_debug!(config, "Activating string check on {} due to forced directory/path.", file_path.display()); // Use macro directly
+        log_debug!(config, "Activating string check on {} due to forced directory/path.", file_path.display());
         do_string_check = true;
     }
 
@@ -119,19 +118,19 @@ fn process_file(
 
     if do_string_check {
         if let Err(e) = strings::check_file_strings(file_path, iocs, config) {
-             log_debug!(config, "Error during string check for {}: {}", file_path.display(), e); // Use macro directly
+             log_debug!(config, "Error during string check for {}: {}", file_path.display(), e);
         }
     }
 
     if do_hash_check {
          if let Err(e) = hash::check_file_hashes(file_path, iocs, config) {
-             log_debug!(config, "Error during hash check for {}: {}", file_path.display(), e); // Use macro directly
+             log_debug!(config, "Error during hash check for {}: {}", file_path.display(), e);
         }
     }
 
     if do_date_check {
          if let Err(e) = timeframe::check_timeframe(file_path, config) {
-            log_debug!(config, "Error during timeframe check for {}: {}", file_path.display(), e); // Use macro directly
+            log_debug!(config, "Error during timeframe check for {}: {}", file_path.display(), e);
         }
     }
 

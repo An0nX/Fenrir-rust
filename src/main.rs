@@ -5,57 +5,59 @@ mod cli;
 mod config;
 mod errors;
 mod ioc;
-mod logger;
+mod logger; // Модуль логгера объявляется здесь
 mod scanner;
 mod checks;
 mod system_info;
 
-// Use imports
+// Use imports (НЕ импортируем макросы явно)
 use crate::config::Config;
-use crate::errors::Result; // Removed FenrirError import
+use crate::errors::Result; // FenrirError не используется напрямую в main
 use crate::ioc::IocCollection;
 use clap::Parser;
-// Removed PathBuf import
 use std::process::ExitCode;
 
 // Define version matching the original script
 const VERSION: &str = "0.9.0-log4shell-rust";
 
-// Import needed macros specifically
-use crate::{log_debug, log_error, log_info, log_notice, log_warn};
+// Макросы log_info!, log_error! и т.д. доступны глобально из модуля logger
 
 fn main() -> ExitCode {
     // --- Parse Command Line Arguments ---
     let args = cli::CliArgs::parse();
 
     // --- Load Configuration ---
+    // Сначала создаем config, потом применяем переопределения из CLI
     let mut config = match Config::load(args.directory.clone()) {
-        Ok(mut cfg) => {
-            if args.debug { cfg.debug = true; }
-            if let Some(path) = args.hash_iocs { cfg.hash_ioc_file = path; }
-            if let Some(path) = args.string_iocs { cfg.string_ioc_file = path; }
-            if let Some(path) = args.filename_iocs { cfg.filename_ioc_file = path; }
-            if let Some(path) = args.c2_iocs { cfg.c2_ioc_file = path; }
-            if let Some(pattern) = args.log_file { cfg.log_file = Some(pattern); }
-
-            // Correctly handle the --disable-c2-check flag (which sets args.enable_c2_check to false)
-            // The struct field `enable_c2_check` defaults to true (via Config::load).
-            // If the flag is present, args.enable_c2_check becomes false.
-            // We want cfg.enable_c2_check to reflect the final state based on the flag.
-            cfg.enable_c2_check = args.enable_c2_check; // Directly assign the value derived by clap
-
-            if let Some(size) = args.max_file_size { cfg.max_file_size_kb = size; }
-            if let Some(threads) = args.threads { cfg.num_threads = threads; }
-            cfg
-        }
-        Err(e) => {
-            // Logger not set up, print directly
-            eprintln!("[E] Configuration Error: {}", e);
-            return ExitCode::FAILURE;
-        }
+         Ok(cfg) => cfg,
+         Err(e) => {
+             eprintln!("[E] Configuration Error: {}", e); // Логгер еще не настроен
+             return ExitCode::FAILURE;
+         }
     };
 
+    // Применяем переопределения из CLI к загруженному config
+    if args.debug { config.debug = true; }
+    if let Some(path) = args.hash_iocs { config.hash_ioc_file = path; }
+    if let Some(path) = args.string_iocs { config.string_ioc_file = path; }
+    if let Some(path) = args.filename_iocs { config.filename_ioc_file = path; }
+    if let Some(path) = args.c2_iocs { config.c2_ioc_file = path; }
+    if let Some(pattern) = args.log_file { config.log_file = Some(pattern); }
+
+    // Используем правильное имя поля из clap: `disable_c2_check`
+    // Если флаг --disable-c2-check указан, args.disable_c2_check будет true.
+    // Устанавливаем поле конфига `enable_c2_check` в false в этом случае.
+    if args.disable_c2_check {
+        config.enable_c2_check = false;
+    }
+    // Если флаг не указан, args.disable_c2_check будет false, и config.enable_c2_check останется true (значение по умолчанию).
+
+    if let Some(size) = args.max_file_size { config.max_file_size_kb = size; }
+    if let Some(threads) = args.threads { config.num_threads = threads; }
+
+
     // --- Setup Logging ---
+    // Передаем config по ссылке
     if let Err(e) = logger::setup_logging(&config) {
         eprintln!("[E] Logging Setup Error: {}", e);
         return ExitCode::FAILURE;
@@ -65,15 +67,15 @@ fn main() -> ExitCode {
     print_header();
 
     // --- Run the main application logic ---
-    // Pass config as a borrow where needed
+    // Передаем config по ссылке
     match run_scan(&config) {
         Ok(_) => {
-            // Pass borrow to log macro
+            // Вызываем макросы напрямую, передавая ссылку
             log_info!(&config, "Finished FENRIR Scan successfully.");
             ExitCode::SUCCESS
         }
         Err(e) => {
-            // Pass borrow to log macro
+            // Вызываем макросы напрямую, передавая ссылку
             log_error!(&config, "FENRIR Scan failed: {}", e);
             ExitCode::FAILURE
         }
@@ -96,8 +98,9 @@ fn print_header() {
 
 
 // Main application logic separated for clarity and testing
-fn run_scan(config: &Config) -> Result<()> { // Takes a borrow
+fn run_scan(config: &Config) -> Result<()> { // Принимает ссылку
 
+    // Вызываем макросы напрямую
     log_info!(config, "Started FENRIR Scan - version {}", VERSION);
     if let Some(log_path) = config.get_current_log_file_path()? {
          log_info!(config, "Writing logfile to {}", log_path.display());
@@ -130,7 +133,8 @@ fn run_scan(config: &Config) -> Result<()> { // Takes a borrow
 
 
 // Check for essential external commands
-fn check_requirements(config: &Config) -> Result<()> { // Takes a borrow
+fn check_requirements(config: &Config) -> Result<()> { // Принимает ссылку
+    // Вызываем макросы напрямую
     log_info!(config, "Checking requirements...");
     if config.enable_c2_check {
         match std::process::Command::new("lsof").arg("-v").output() {
