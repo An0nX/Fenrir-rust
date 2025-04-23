@@ -5,10 +5,6 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use lazy_static::lazy_static;
-// Removed: use crate::system_info::get_hostname; // No longer needed here
-
-// Use environment variables for configuration to mimic the script's approach
-// Prefixed with FENRIR_ for clarity
 
 const DEFAULT_MAX_FILE_SIZE_KB: u64 = 8000;
 const DEFAULT_HASH_IOC_FILE: &str = "./hash-iocs.txt";
@@ -44,7 +40,7 @@ pub struct Config {
     pub string_ioc_file: PathBuf,
     pub filename_ioc_file: PathBuf,
     pub c2_ioc_file: PathBuf,
-    pub log_file: Option<String>, // Pattern to be formatted later
+    pub log_file: Option<String>,
     pub log_to_file: bool,
     pub log_to_syslog: bool,
     pub log_to_cmdline: bool,
@@ -52,8 +48,8 @@ pub struct Config {
     pub syslog_facility: String,
     pub enable_c2_check: bool,
     pub enable_hash_check: bool,
-    pub enable_string_check: bool, // Added for consistency
-    pub enable_filename_check: bool, // Added for consistency
+    pub enable_string_check: bool,
+    pub enable_filename_check: bool,
     pub enable_timeframe_check: bool,
     pub max_file_size_kb: u64,
     pub check_only_relevant_extensions: bool,
@@ -64,12 +60,42 @@ pub struct Config {
     pub min_hot_epoch: Option<u64>,
     pub max_hot_epoch: Option<u64>,
     pub debug: bool,
-    pub num_threads: usize, // Control concurrency
+    pub num_threads: usize,
 }
 
 impl Config {
     pub fn load(scan_path: PathBuf) -> Result<Self> {
-        let debug = std::env::var("FENRIR_DEBUG").map_or(false, |v| v == "1" || v.to_lowercase() == "true");
+        // Use is_ok_and for boolean flags where default is false
+        let debug = std::env::var("FENRIR_DEBUG")
+            .is_ok_and(|v| v == "1" || v.to_lowercase() == "true");
+        let log_to_syslog = std::env::var("FENRIR_LOG_TO_SYSLOG")
+            .is_ok_and(|v| v == "1" || v.to_lowercase() == "true");
+        let enable_timeframe_check = std::env::var("FENRIR_ENABLE_TIMEFRAME_CHECK")
+            .is_ok_and(|v| v == "1" || v.to_lowercase() == "true");
+
+        // Use map().unwrap_or(default) for boolean flags where default is true
+        let log_to_file = std::env::var("FENRIR_LOG_TO_FILE")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(true); // Default ON
+        let log_to_cmdline = std::env::var("FENRIR_LOG_TO_CMDLINE")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(true); // Default ON
+        let enable_c2_check = std::env::var("FENRIR_ENABLE_C2_CHECK")
+             .map(|v| v == "1" || v.to_lowercase() == "true")
+             .unwrap_or(true);
+        let enable_hash_check = std::env::var("FENRIR_ENABLE_HASH_CHECK")
+             .map(|v| v == "1" || v.to_lowercase() == "true")
+             .unwrap_or(true);
+        let enable_string_check = std::env::var("FENRIR_ENABLE_STRING_CHECK")
+             .map(|v| v == "1" || v.to_lowercase() == "true")
+             .unwrap_or(true);
+        let enable_filename_check = std::env::var("FENRIR_ENABLE_FILENAME_CHECK")
+             .map(|v| v == "1" || v.to_lowercase() == "true")
+             .unwrap_or(true);
+        let check_only_relevant_extensions = std::env::var("FENRIR_CHECK_ONLY_RELEVANT_EXTENSIONS")
+             .map(|v| v == "1" || v.to_lowercase() == "true")
+             .unwrap_or(true);
+
 
         Ok(Config {
             scan_path,
@@ -91,21 +117,21 @@ impl Config {
             ),
             log_file: Some(std::env::var("FENRIR_LOG_FILE_PATTERN")
                            .unwrap_or_else(|_| DEFAULT_LOG_FILE_PATTERN.to_string())),
-            log_to_file: std::env::var("FENRIR_LOG_TO_FILE").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
-            log_to_syslog: std::env::var("FENRIR_LOG_TO_SYSLOG").map_or(false, |v| v == "1" || v.to_lowercase() == "true"),
-            log_to_cmdline: std::env::var("FENRIR_LOG_TO_CMDLINE").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
+            log_to_file,
+            log_to_syslog,
+            log_to_cmdline,
             syslog_facility: std::env::var("FENRIR_SYSLOG_FACILITY")
                 .unwrap_or_else(|_| DEFAULT_SYSLOG_FACILITY.to_string()),
-            enable_c2_check: std::env::var("FENRIR_ENABLE_C2_CHECK").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
-            enable_hash_check: std::env::var("FENRIR_ENABLE_HASH_CHECK").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
-            enable_string_check: std::env::var("FENRIR_ENABLE_STRING_CHECK").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
-            enable_filename_check: std::env::var("FENRIR_ENABLE_FILENAME_CHECK").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
-            enable_timeframe_check: std::env::var("FENRIR_ENABLE_TIMEFRAME_CHECK").map_or(false, |v| v == "1" || v.to_lowercase() == "true"),
+            enable_c2_check,
+            enable_hash_check,
+            enable_string_check,
+            enable_filename_check,
+            enable_timeframe_check,
             max_file_size_kb: std::env::var("FENRIR_MAX_FILE_SIZE_KB")
                 .ok()
                 .and_then(|s| s.parse::<u64>().ok())
                 .unwrap_or(DEFAULT_MAX_FILE_SIZE_KB),
-            check_only_relevant_extensions: std::env::var("FENRIR_CHECK_ONLY_RELEVANT_EXTENSIONS").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
+            check_only_relevant_extensions,
             relevant_extensions: parse_env_hashset_string("FENRIR_RELEVANT_EXTENSIONS", &DEFAULT_RELEVANT_EXTENSIONS)?,
             excluded_dirs: parse_env_hashset_pathbuf("FENRIR_EXCLUDED_DIRS", &DEFAULT_EXCLUDED_DIRS)?,
             forced_string_match_dirs: parse_env_hashset_pathbuf("FENRIR_FORCED_STRING_MATCH_DIRS", &DEFAULT_FORCED_STRING_MATCH_DIRS)?,
@@ -124,23 +150,15 @@ impl Config {
         if !self.log_to_file || self.log_file.is_none() {
             return Ok(None);
         }
-
-        // Use the imported function for clarity
-        let hostname = get_hostname()?; // This now calls the function from system_info.rs
-
+        let hostname = get_hostname()?;
         let date_str = chrono::Local::now().format("%Y%m%d").to_string();
-
         let pattern = self.log_file.as_ref().unwrap();
         let path_str = pattern
             .replace("{HOSTNAME}", &hostname)
             .replace("{DATE}", &date_str);
-
         Ok(Some(PathBuf::from(path_str)))
     }
 }
-
-
-// Helper functions for parsing environment variables
 
 fn parse_env_optional_u64(env_var: &str) -> Result<Option<u64>> {
     match std::env::var(env_var) {
@@ -191,6 +209,3 @@ pub fn get_epoch_seconds(time: SystemTime) -> Result<u64> {
         .map(|d| d.as_secs())
         .map_err(|e| FenrirError::SystemInfo(format!("System time error: {}", e)))
 }
-
-// Removed the nested system_info module
-// mod system_info { ... }

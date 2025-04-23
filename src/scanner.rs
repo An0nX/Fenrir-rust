@@ -1,17 +1,18 @@
 // fenrir-rust/src/scanner.rs
-use crate::checks::{filename, hash, strings, timeframe}; // Keep imports correct
+use crate::checks::{filename, hash, strings, timeframe}; // Removed c2 import as it's not used here
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::ioc::IocCollection;
-use crate::logger::{log_debug, log_info, log_warn}; // Added log_warn
+use crate::logger::{log_debug, log_info}; // Use macros
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
-use walkdir::{WalkDir}; // Removed unused DirEntry
+use walkdir::{DirEntry, WalkDir}; // Keep DirEntry import
 
 pub fn scan_filesystem(config: &Config, iocs: &IocCollection) -> Result<()> {
     log_info!(config, "[+] Scanning path {} ...", config.scan_path.display());
 
+    // --- Determine number of threads ---
     let num_threads = config.num_threads;
     log_info!(config, "Using {} threads for file scanning.", num_threads);
     rayon::ThreadPoolBuilder::new()
@@ -19,27 +20,34 @@ pub fn scan_filesystem(config: &Config, iocs: &IocCollection) -> Result<()> {
         .build_global()
         .map_err(|e| FenrirError::Config(format!("Failed to build thread pool: {}", e)))?;
 
+
+    // --- Prepare filters ---
+    // Convert PathBufs in config to Paths for efficient comparison
     let excluded_dirs_paths: Vec<&Path> = config.excluded_dirs.iter().map(|pb| pb.as_path()).collect();
     let forced_string_dirs_paths: Vec<&Path> = config.forced_string_match_dirs.iter().map(|pb| pb.as_path()).collect();
 
+
+    // --- Walk the directory and collect files to scan ---
+    // We collect file paths first to parallelize the checking, not the walking itself easily.
     let files_to_scan: Vec<PathBuf> = WalkDir::new(&config.scan_path)
-        .follow_links(false)
+        .follow_links(false) // Don't follow symbolic links by default
         .into_iter()
         .filter_map(|entry_res| {
             match entry_res {
                 Ok(entry) => {
+                    // Basic filtering: only files, handle read errors
                     if entry.file_type().is_file() {
-                        Some(entry.into_path())
+                        Some(entry.into_path()) // Keep PathBuf
                     } else {
-                        None
+                        None // Skip directories, symlinks, etc.
                     }
                 },
                 Err(e) => {
+                    // Log errors accessing directory entries but continue
                     if let Some(path) = e.path() {
-                         // Use log_warn for access errors during walk
-                        log_warn!(config, "Skipping path due to error: {}: {}", path.display(), e);
+                        log_debug!(config, "Skipping path due to error: {}: {}", path.display(), e);
                     } else {
-                        log_warn!(config, "Skipping entry due to error: {}", e);
+                        log_debug!(config, "Skipping entry due to error: {}", e);
                     }
                     None
                 }
@@ -49,21 +57,23 @@ pub fn scan_filesystem(config: &Config, iocs: &IocCollection) -> Result<()> {
 
     log_info!(config, "Found {} files to analyze.", files_to_scan.len());
 
+
+    // --- Parallel Scan ---
     files_to_scan.par_iter().for_each(|file_path| {
+         // Perform checks for each file - handle errors within the closure
          if let Err(e) = process_file(file_path, config, iocs, &excluded_dirs_paths, &forced_string_dirs_paths) {
-             // Log errors during file processing as warnings or debug depending on severity
-             match e {
-                 FenrirError::FileAccess { .. } => log_warn!(config, "Error processing file {}: {}", file_path.display(), e),
-                 _ => log_debug!(config, "Error processing file {}: {}", file_path.display(), e),
-             }
+            // Log errors encountered during file processing
+             log_debug!(config, "Error processing file {}: {}", file_path.display(), e);
         }
     });
+
 
     log_info!(config, "Finished filesystem scan.");
     Ok(())
 }
 
 
+// Function to process a single file
 fn process_file(
     file_path: &Path,
     config: &Config,
@@ -74,11 +84,15 @@ fn process_file(
 
     log_debug!(config, "Scanning {}", file_path.display());
 
+    // --- Exclusion Checks ---
+
+    // 1. Excluded Directories
     if excluded_dirs.iter().any(|ex_dir| file_path.starts_with(ex_dir)) {
         log_debug!(config, "Skipping {} due to exclusion.", file_path.display());
         return Ok(());
     }
 
+    // --- Get File Metadata (once) ---
     let metadata = match fs::metadata(file_path) {
          Ok(md) => md,
          Err(e) => return Err(FenrirError::FileAccess { path: file_path.to_path_buf(), source: e }),
@@ -87,6 +101,7 @@ fn process_file(
     let file_size_kb = file_size_bytes / 1024;
 
 
+    // --- Determine which checks to run ---
     let mut do_string_check = config.enable_string_check;
     let mut do_hash_check = config.enable_hash_check;
     let do_date_check = config.enable_timeframe_check;
@@ -96,12 +111,14 @@ fn process_file(
         .and_then(|os| os.to_str())
         .map(|s| s.to_lowercase());
 
-    // Consider omitting ELF check for simplicity or using a pure Rust ELF parser if needed
-    let is_elf = false;
+    let is_elf = false; // Placeholder - TODO: Implement if needed
 
+    // 2. Relevant Extension Check
     if config.check_only_relevant_extensions && !is_elf {
         match extension_lower.as_deref() {
-            Some(ext) if config.relevant_extensions.contains(ext) => {}
+            Some(ext) if config.relevant_extensions.contains(ext) => {
+                // Extension is relevant, keep checks enabled
+            }
             _ => {
                 log_debug!(config, "Deactivating string/hash checks on {} due to irrelevant extension.", file_path.display());
                 do_string_check = false;
@@ -110,35 +127,44 @@ fn process_file(
         }
     }
 
+    // 3. File Size Check
     if file_size_kb > config.max_file_size_kb {
         log_debug!(config, "Deactivating string/hash checks on {} due to size ({} KB > {} KB)", file_path.display(), file_size_kb, config.max_file_size_kb);
         do_string_check = false;
         do_hash_check = false;
     }
 
-    if !do_string_check && config.enable_string_check {
-         if forced_string_dirs.iter().any(|forced_path| file_path.starts_with(forced_path) || file_path == *forced_path ) {
-            log_debug!(config, "Activating string check on {} due to forced directory/path.", file_path.display());
-            do_string_check = true;
-        }
+    // --- Forced Inclusion Checks ---
+
+    // 1. Forced String Check Directory - COLLAPSED IF HERE
+    if !do_string_check && config.enable_string_check && forced_string_dirs.iter().any(|forced_path| file_path.starts_with(forced_path) || file_path == *forced_path ) {
+        log_debug!(config, "Activating string check on {} due to forced directory/path.", file_path.display());
+        do_string_check = true;
     }
 
+
+    // --- Execute Checks ---
+
+    // Filename Check
     if do_filename_check {
          filename::check_filename(file_path, iocs, config);
     }
 
+    // String Check
     if do_string_check {
         if let Err(e) = strings::check_file_strings(file_path, iocs, config) {
              log_debug!(config, "Error during string check for {}: {}", file_path.display(), e);
         }
     }
 
+    // Hash Check
     if do_hash_check {
          if let Err(e) = hash::check_file_hashes(file_path, iocs, config) {
              log_debug!(config, "Error during hash check for {}: {}", file_path.display(), e);
         }
     }
 
+    // Timeframe Check
     if do_date_check {
          if let Err(e) = timeframe::check_timeframe(file_path, config) {
             log_debug!(config, "Error during timeframe check for {}: {}", file_path.display(), e);

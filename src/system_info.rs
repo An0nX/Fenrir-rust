@@ -2,53 +2,46 @@
 use crate::config::Config;
 use crate::errors::{Result, FenrirError};
 use crate::logger::log_info; // Use macro
+use lazy_static::lazy_static; // Import lazy_static
 use std::fs;
 use std::io;
-use std::path::PathBuf; // Keep PathBuf here if needed for other functions
+use std::path::PathBuf;
 use std::process::Command;
 
-// --- Public helper function to get hostname ---
 pub fn get_hostname() -> Result<String> {
     hostname::get()?
         .into_string()
         .map_err(|os_str| FenrirError::SystemInfo(format!("Hostname is not valid UTF-8: {:?}", os_str)))
 }
-// --- End of added function ---
 
 pub fn log_system_info(config: &Config) -> Result<()> {
     log_info!(config, "Gathering system information...");
 
-    // Hostname (use the public helper function)
     let hostname = get_hostname()?;
     log_info!(config, "HOSTNAME: {}", hostname);
 
-    // IP Addresses (using 'ip' command on Linux, 'ifconfig' as fallback/macOS)
     let ip_addresses = get_ip_addresses().unwrap_or_else(|e| {
         log_info!(config, "Could not get IP addresses: {}", e);
         "N/A".to_string()
     });
     log_info!(config, "IP: {}", ip_addresses);
 
-    // OS Release (/etc/*release)
     let os_release = get_os_release().unwrap_or_else(|e| {
          log_info!(config, "Could not get OS release info: {}", e);
         "N/A".to_string()
     });
     log_info!(config, "OS: {}", os_release);
 
-     // Issue (/etc/issue)
     let os_issue = fs::read_to_string("/etc/issue")
         .map(|s| s.trim().replace('\n', "; "))
         .unwrap_or_else(|_| "N/A".to_string());
     log_info!(config, "ISSUE: {}", os_issue);
 
-    // Kernel (uname -a)
     let os_kernel = run_command("uname", &["-a"]).unwrap_or_else(|e| {
         log_info!(config, "Could not get kernel info: {}", e);
         "N/A".to_string()
     });
     log_info!(config, "KERNEL: {}", os_kernel);
-
 
     Ok(())
 }
@@ -73,9 +66,9 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<String> {
 
 fn get_ip_addresses() -> Result<String> {
     let output = if cfg!(target_os = "linux") {
-        Command::new("ip").arg("-4").arg("addr").output() // Try 'ip' command first on Linux
+        Command::new("ip").arg("-4").arg("addr").output()
     } else {
-         Command::new("ifconfig").output() // Fallback or for other Unix-like (macOS)
+         Command::new("ifconfig").output()
     };
 
     let output = output.map_err(|e| FenrirError::UtilityNotFound { name: "ip/ifconfig".to_string(), source: e })?;
@@ -90,10 +83,8 @@ fn get_ip_addresses() -> Result<String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut ips = Vec::new();
-    // Simple regex to find IPv4 addresses (adjust as needed for IPv6 or robustness)
-    // Ensure regex crate is imported if used here
-    // let re = regex::Regex::new(r"inet (?:addr:)?((?:\d{1,3}\.){3}\d{1,3})").unwrap();
-    lazy_static::lazy_static! {
+
+    lazy_static! {
         static ref IP_RE: regex::Regex = regex::Regex::new(r"inet (?:addr:)?((?:\d{1,3}\.){3}\d{1,3})").unwrap();
     }
     for cap in IP_RE.captures_iter(&stdout) {
@@ -117,15 +108,14 @@ fn get_os_release() -> Result<String> {
     let mut releases = Vec::new();
     match fs::read_dir("/etc") {
         Ok(entries) => {
-            for entry_res in entries {
-                if let Ok(entry) = entry_res {
-                    let path = entry.path();
-                    if path.is_file() {
-                        if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                            if filename.ends_with("-release") || filename == "os-release" || filename == "lsb-release" {
-                                if let Ok(content) = fs::read_to_string(&path) {
-                                    releases.push(content);
-                                }
+            // Use flatten() to simplify iteration over Result<DirEntry>
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                        if filename.ends_with("-release") || filename == "os-release" || filename == "lsb-release" {
+                            if let Ok(content) = fs::read_to_string(&path) {
+                                releases.push(content);
                             }
                         }
                     }
@@ -135,7 +125,7 @@ fn get_os_release() -> Result<String> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return Ok("N/A (/etc not found)".to_string());
         },
-        Err(e) => return Err(FenrirError::FileAccess{ path: PathBuf::from("/etc"), source: e}), // Use PathBuf here
+        Err(e) => return Err(FenrirError::FileAccess{ path: PathBuf::from("/etc"), source: e}),
     }
 
 
