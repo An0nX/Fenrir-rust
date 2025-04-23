@@ -1,10 +1,11 @@
 // fenrir-rust/src/config.rs
 use crate::errors::{FenrirError, Result};
+use crate::system_info::get_hostname; // Import from the correct module
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use lazy_static::lazy_static;
-use crate::system_info::get_hostname; // Ensure get_hostname is imported if used directly
+// Removed: use crate::system_info::get_hostname; // No longer needed here
 
 // Use environment variables for configuration to mimic the script's approach
 // Prefixed with FENRIR_ for clarity
@@ -47,7 +48,6 @@ pub struct Config {
     pub log_to_file: bool,
     pub log_to_syslog: bool,
     pub log_to_cmdline: bool,
-    // Allow dead code for syslog_facility only when syslog_logging feature is NOT enabled
     #[cfg_attr(not(feature = "syslog_logging"), allow(dead_code))]
     pub syslog_facility: String,
     pub enable_c2_check: bool,
@@ -64,7 +64,6 @@ pub struct Config {
     pub min_hot_epoch: Option<u64>,
     pub max_hot_epoch: Option<u64>,
     pub debug: bool,
-    // --- Added ---
     pub num_threads: usize, // Control concurrency
 }
 
@@ -92,9 +91,9 @@ impl Config {
             ),
             log_file: Some(std::env::var("FENRIR_LOG_FILE_PATTERN")
                            .unwrap_or_else(|_| DEFAULT_LOG_FILE_PATTERN.to_string())),
-            log_to_file: std::env::var("FENRIR_LOG_TO_FILE").map_or(true, |v| v == "1" || v.to_lowercase() == "true"), // Default ON
-            log_to_syslog: std::env::var("FENRIR_LOG_TO_SYSLOG").map_or(false, |v| v == "1" || v.to_lowercase() == "true"), // Default OFF
-            log_to_cmdline: std::env::var("FENRIR_LOG_TO_CMDLINE").map_or(true, |v| v == "1" || v.to_lowercase() == "true"), // Default ON
+            log_to_file: std::env::var("FENRIR_LOG_TO_FILE").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
+            log_to_syslog: std::env::var("FENRIR_LOG_TO_SYSLOG").map_or(false, |v| v == "1" || v.to_lowercase() == "true"),
+            log_to_cmdline: std::env::var("FENRIR_LOG_TO_CMDLINE").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
             syslog_facility: std::env::var("FENRIR_SYSLOG_FACILITY")
                 .unwrap_or_else(|_| DEFAULT_SYSLOG_FACILITY.to_string()),
             enable_c2_check: std::env::var("FENRIR_ENABLE_C2_CHECK").map_or(true, |v| v == "1" || v.to_lowercase() == "true"),
@@ -117,7 +116,7 @@ impl Config {
             num_threads: std::env::var("FENRIR_NUM_THREADS")
                  .ok()
                  .and_then(|s| s.parse::<usize>().ok())
-                 .unwrap_or_else(num_cpus::get), // Default to number of logical CPUs
+                 .unwrap_or_else(num_cpus::get),
         })
     }
 
@@ -127,11 +126,11 @@ impl Config {
         }
 
         // Use the imported function for clarity
-        let hostname = get_hostname()?;
+        let hostname = get_hostname()?; // This now calls the function from system_info.rs
 
         let date_str = chrono::Local::now().format("%Y%m%d").to_string();
 
-        let pattern = self.log_file.as_ref().unwrap(); // Safe due to check above
+        let pattern = self.log_file.as_ref().unwrap();
         let path_str = pattern
             .replace("{HOSTNAME}", &hostname)
             .replace("{DATE}", &date_str);
@@ -163,7 +162,7 @@ fn parse_env_hashset_string(env_var: &str, default: &HashSet<String>) -> Result<
     match std::env::var(env_var) {
         Ok(val_str) => {
             if val_str.is_empty() {
-                Ok(default.clone()) // Or return empty set? Stick to default.
+                Ok(default.clone())
             } else {
                 Ok(val_str.split(',').map(|s| s.trim().to_lowercase()).collect())
             }
@@ -187,19 +186,11 @@ fn parse_env_hashset_pathbuf(env_var: &str, default: &HashSet<PathBuf>) -> Resul
     }
 }
 
-// Helper to get system time epoch seconds
 pub fn get_epoch_seconds(time: SystemTime) -> Result<u64> {
     time.duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .map_err(|e| FenrirError::SystemInfo(format!("System time error: {}", e)))
 }
 
-// Separate module/file for system_info functions like get_hostname
-mod system_info {
-    use crate::errors::{FenrirError, Result};
-    pub fn get_hostname() -> Result<String> {
-         hostname::get()?
-            .into_string()
-            .map_err(|os_str| FenrirError::SystemInfo(format!("Hostname is not valid UTF-8: {:?}", os_str)))
-    }
-}
+// Removed the nested system_info module
+// mod system_info { ... }
