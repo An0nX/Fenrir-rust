@@ -1,20 +1,19 @@
 # fenrir-rust/.github/workflows/release.yml
 name: Release Fenrir Rust
 
+# Запускается ПОСЛЕ успешного завершения воркфлоу "Build Fenrir Rust"
 on:
-  push:
-    tags:
-      - 'v*.*.*' # Trigger on tags like v0.9.0, v1.0.0
+  workflow_run:
+    workflows: ["Build Fenrir Rust"] # Имя воркфлоу из build.yml
+    types:
+      - completed # Только когда он завершился
 
 jobs:
-  # ЗАМЕЧАНИЕ: Мы НЕ вызываем build.yml напрямую.
-  # Мы полагаемся на то, что build.yml ТОЖЕ сработает на этот тег
-  # и загрузит артефакты, которые мы потом скачаем.
-
   create-release:
     name: Create GitHub Release
-    # Удаляем needs: build-matrix, т.к. нет такой задачи в ЭТОМ воркфлоу
-    # needs: build-matrix
+    # Запускаем эту задачу только если build.yml завершился УСПЕШНО
+    # и если build.yml был запущен ПУШЕМ ТЕГА
+    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'refs/tags/') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write # Разрешение на создание релизов и загрузку ассетов
@@ -22,12 +21,16 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      # Чекаут нужен для доступа к README/LICENSE и т.д., если вы их включаете
+      # Если не нужны, можно убрать, но лучше оставить для гибкости.
+      # Важно: чекаут будет по коммиту, который вызвал workflow_run, а не по тегу напрямую.
+      # Но нам нужен доступ к коду только для вспомогательных файлов.
 
     - name: Download all build artifacts
       uses: actions/download-artifact@v4
-      # Не указываем 'name', скачиваем ВСЕ артефакты из текущего запуска воркфлоу (который сработал на тег)
-      # Артефакты будут скачаны в папки с именами артефактов
       with:
+        # Указываем ID запуска воркфлоу, который создал артефакты
+        run-id: ${{ github.event.workflow_run.id }}
         path: artifacts/ # Скачиваем в папку 'artifacts'
 
     - name: List downloaded artifacts
@@ -41,8 +44,8 @@ jobs:
         CHECKSUM_FILE="checksums.sha256"
         mkdir -p $RELEASE_DIR
         echo "--- Moving assets ---"
-        # Перемещаем все бинарники и связанные файлы из подпапок в папку релиза
-        find artifacts/ -type f -print -exec mv {} $RELEASE_DIR/ \;
+        # Перемещаем все файлы из всех скачанных папок артефактов
+        find artifacts/ -mindepth 2 -type f -print -exec mv {} $RELEASE_DIR/ \;
 
         echo "--- Generating Checksums ---"
         cd $RELEASE_DIR
@@ -58,24 +61,29 @@ jobs:
            cat $CHECKSUM_FILE >> $GITHUB_OUTPUT
            echo "EOF" >> $GITHUB_OUTPUT
         else
-           echo "checksum_content=" >> $GITHUB_OUTPUT # Устанавливаем пустой вывод, если нет чексумм
+           echo "checksum_content=No artifacts built or checksummed." >> $GITHUB_OUTPUT # Устанавливаем текст, если нет чексумм
         fi
         cd .. # Возвращаемся в корень
+
+    - name: Extract Tag Name
+      id: extract_tag
+      # Извлекаем имя тега из ссылки (refs/tags/vX.Y.Z -> vX.Y.Z)
+      run: echo "TAG_NAME=${{ github.event.workflow_run.head_branch/refs\/tags\// }}" >> $GITHUB_OUTPUT
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref_name }} # Используем тег, который запустил воркфлоу
-        name: Fenrir Rust ${{ github.ref_name }} # Название релиза
-        body: | # Опционально: добавляем описание релиза или чексуммы
-          Fenrir Rust release based on tag ${{ github.ref_name }}.
+        # Используем извлеченное имя тега
+        tag_name: ${{ steps.extract_tag.outputs.TAG_NAME }}
+        name: Fenrir Rust ${{ steps.extract_tag.outputs.TAG_NAME }} # Название релиза
+        body: |
+          Fenrir Rust release based on tag ${{ steps.extract_tag.outputs.TAG_NAME }}.
 
           **SHA256 Checksums:**
           ```
           ${{ steps.prepare_assets.outputs.checksum_content }}
           ```
-        draft: false # Установите true для создания черновика релиза
-        prerelease: false # Установите true, если это пре-релиз
-        # Этот паттерн корректно прикрепляет все файлы, перемещенные в release-assets
+        draft: false
+        prerelease: false
         files: |
           release-assets/*
