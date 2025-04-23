@@ -49,10 +49,7 @@ pub fn setup_logging(config: &Config) -> Result<()> {
                 .with_filter(file_level);
             layers.push(file_layer.boxed());
         } else {
-             // Use eprintln directly as logger isn't set up yet
              eprintln!("Warning: File logging enabled but could not determine log file path.");
-             // Or if logging is already partially set up (e.g., console):
-             // tracing::warn!("File logging enabled but could not determine log file path.");
         }
     }
 
@@ -84,7 +81,6 @@ pub fn setup_logging(config: &Config) -> Result<()> {
                   "local6" => syslog::Facility::LOG_LOCAL6, "local7" => syslog::Facility::LOG_LOCAL7,
                   _ => {
                       eprintln!("Warning: Invalid syslog facility '{}', using LOG_USER.", config.syslog_facility);
-                      // tracing::warn!(...); // Use if console logger might be active
                       syslog::Facility::LOG_USER
                   }
               };
@@ -96,13 +92,11 @@ pub fn setup_logging(config: &Config) -> Result<()> {
             match syslog::unix(formatter) {
                 Ok(writer) => {
                     let syslog_layer = tracing_syslog::SyslogLayer::new( writer, syslog_level, level_mapper)
-                         // Simplify map_err here
                          .map_err(|e| FenrirError::LoggingSetup(format!("Syslog layer init failed: {}", e)))?;
                      layers.push(syslog_layer.boxed());
                  },
                  Err(e) => {
                      eprintln!("Error: Failed to connect to syslog: {}", e);
-                     // tracing::error!(...); // Use if console logger might be active
                  }
             }
         }
@@ -111,7 +105,6 @@ pub fn setup_logging(config: &Config) -> Result<()> {
     {
         if config.log_to_syslog {
              eprintln!("Warning: Syslog logging requested, but the 'syslog_logging' feature is not enabled.");
-             // tracing::warn!(...);
         }
     }
 
@@ -125,50 +118,57 @@ pub fn setup_logging(config: &Config) -> Result<()> {
 }
 
 pub fn should_log(message: &str, config: &Config) -> bool {
-    for excluded in &config.exclude_log_strings {
-        if message.contains(excluded) {
-            return false;
-        }
-    }
-    true
+    !config.exclude_log_strings.iter().any(|excluded| message.contains(excluded))
 }
+
+// --- Corrected Macro Definitions ---
+// Wrap the logic in a block `{}` so the macro expands to something usable as a statement.
+// Remove trailing semicolon inside format!
 
 #[macro_export]
 macro_rules! log_info {
     ($config:expr, $($arg:tt)*) => {
-        let msg = format!($($arg)*);
-        if $crate::logger::should_log(&msg, $config) {
-            tracing::info!("{}", msg);
-        }
+        { // Start block
+            let msg = format!($($arg)*); // No semicolon needed here
+            if $crate::logger::should_log(&msg, $config) {
+                tracing::info!("{}", msg) // No semicolon needed here
+            }
+        } // End block
     };
 }
 
 #[macro_export]
 macro_rules! log_warn {
      ($config:expr, $($arg:tt)*) => {
-        let msg = format!($($arg)*);
-        if $crate::logger::should_log(&msg, $config) {
-            tracing::warn!("{}", msg);
-        }
+         { // Start block
+             let msg = format!($($arg)*);
+             if $crate::logger::should_log(&msg, $config) {
+                 tracing::warn!("{}", msg)
+             }
+         } // End block
     };
 }
 
 #[macro_export]
 macro_rules! log_error {
      ($config:expr, $($arg:tt)*) => {
-        let msg = format!($($arg)*);
-         tracing::error!("{}", msg);
+         { // Start block
+            let msg = format!($($arg)*);
+            // Error messages usually bypass exclusion filters
+            tracing::error!("{}", msg)
+         } // End block
     };
 }
 
 #[macro_export]
-macro_rules! log_notice { // Assuming notice maps to INFO level
+macro_rules! log_notice {
     ($config:expr, $($arg:tt)*) => {
-        let msg = format!($($arg)*);
-        if $crate::logger::should_log(&msg, $config) {
-            // Map notice level to info, warn, or a custom level if using more advanced logging
-            tracing::info!("NOTICE: {}", msg); // Prefixing manually for clarity
-        }
+         { // Start block
+            let msg = format!($($arg)*);
+            if $crate::logger::should_log(&msg, $config) {
+                tracing::info!("NOTICE: {}", msg) // Prefixing manually for clarity
+            }
+         } // End block
     };
 }
 
@@ -176,15 +176,18 @@ macro_rules! log_notice { // Assuming notice maps to INFO level
 #[macro_export]
 macro_rules! log_debug {
     ($config:expr, $($arg:tt)*) => {
-        let msg = format!($($arg)*);
-        if $config.debug && $crate::logger::should_log(&msg, $config) {
-            tracing::debug!("{}", msg);
-        }
+        { // Start block
+            let msg = format!($($arg)*);
+            if $config.debug && $crate::logger::should_log(&msg, $config) {
+                tracing::debug!("{}", msg)
+            }
+        } // End block
     };
 }
 
-pub(crate) use log_debug;
-pub(crate) use log_error;
-pub(crate) use log_info;
-pub(crate) use log_warn;
-pub(crate) use log_notice; // Export the notice macro
+// Removed redundant pub(crate) use lines
+// pub(crate) use log_debug;
+// pub(crate) use log_error;
+// pub(crate) use log_info;
+// pub(crate) use log_warn;
+// pub(crate) use log_notice;
