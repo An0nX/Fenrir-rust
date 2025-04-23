@@ -5,7 +5,7 @@ use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path; // Убираем PathBuf
+use std::path::Path; // Убран PathBuf
 
 #[derive(Debug, Clone)]
 pub struct IocCollection {
@@ -27,6 +27,7 @@ impl IocCollection {
             .iter()
             .map(AsRef::as_ref)
             .chain(c2_iocs.iter().map(AsRef::as_ref))
+            // Отформатировано
             .collect();
 
         let string_ioc_matcher = if !all_strings_for_matcher.is_empty() {
@@ -55,7 +56,6 @@ impl IocCollection {
 
 fn read_lines(path: &Path) -> Result<impl Iterator<Item = Result<String>>> {
     let file = File::open(path).map_err(|e| FenrirError::IocRead {
-        // path.to_path_buf() возвращает PathBuf, но тип здесь не пишется
         path: path.to_path_buf(),
         source: e,
     })?;
@@ -85,8 +85,8 @@ fn load_hash_iocs(path: &Path) -> Result<HashMap<String, String>> {
                     iocs.insert(hash_trimmed, description.trim().to_string());
                 } else {
                     return Err(FenrirError::IocFormat {
-                        // path.to_path_buf() возвращает PathBuf
                         path: path.to_path_buf(),
+                        // Отформатировано
                         details: format!(
                             "L{}: Invalid hash format '{}'",
                             line_num + 1,
@@ -97,8 +97,8 @@ fn load_hash_iocs(path: &Path) -> Result<HashMap<String, String>> {
             }
             None => {
                 return Err(FenrirError::IocFormat {
-                    // path.to_path_buf() возвращает PathBuf
                     path: path.to_path_buf(),
+                    // Отформатировано
                     details: format!(
                         "L{}: Missing ';' separator in line '{}'",
                         line_num + 1,

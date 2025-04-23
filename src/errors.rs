@@ -24,11 +24,9 @@ pub enum FenrirError {
         source: std::io::Error,
     },
 
-    // Used by ioc.rs now
     #[error("Invalid IOC format in file '{path}' on line: {details}")]
     IocFormat { path: PathBuf, details: String },
 
-    // Clap handles CLI errors, allow dead code for now
     #[allow(dead_code)]
     #[error("Failed to parse argument: {0}")]
     Argument(String),
@@ -40,23 +38,20 @@ pub enum FenrirError {
         source: std::io::Error,
     },
 
-    // Отформатировано
     #[error("Failed to execute command '{command}': {stderr}")]
     CommandExecution { command: String, stderr: String },
 
-    // Output parsing errors not currently generated, allow dead code
     #[allow(dead_code)]
     // Отформатировано
     #[error("Failed to parse command output for '{command}': {details}")]
     CommandOutputParse { command: String, details: String },
 
-    // Generic hashing errors not currently generated, allow dead code
     #[allow(dead_code)]
     #[error("Hashing error: {0}")]
     Hashing(String),
 
     #[error("String matching error: {0}")]
-    StringMatching(String), // Used by AhoCorasick builder
+    StringMatching(String),
 
     #[error("Logging setup failed: {0}")]
     LoggingSetup(String),
@@ -64,8 +59,7 @@ pub enum FenrirError {
     #[error("System information retrieval failed: {0}")]
     SystemInfo(String),
 
-    // Removed InvalidExtension as it was unused
-    // Удалена пустая строка
+    // Отформатировано (удалена пустая строка)
     #[error("Date/Time parsing or conversion error: {0}")]
     DateTimeError(#[from] chrono::ParseError),
 
@@ -77,8 +71,7 @@ pub enum FenrirError {
 
     #[error("Walkdir error: {0}")]
     Walkdir(#[from] walkdir::Error),
-    // Удалена пустая строка
+    // Отформатировано (удалена пустая строка)
 }
 
-// Define a type alias for Result<T, FenrirError>
 pub type Result<T> = std::result::Result<T, FenrirError>;
