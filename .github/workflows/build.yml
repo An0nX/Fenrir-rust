@@ -1,4 +1,4 @@
-k# fenrir-rust/.github/workflows/build.yml
+# fenrir-rust/.github/workflows/build.yml
 name: Build and Release Fenrir Rust
 
 on:
